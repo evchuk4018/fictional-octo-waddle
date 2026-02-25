@@ -207,3 +207,23 @@ export function useToggleTask() {
     }
   });
 }
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  return useMutation({
+    mutationFn: async (payload: { taskId: string }) => {
+      const { error } = await supabase.from("daily_tasks").delete().eq("id", payload.taskId);
+
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["goals"] }),
+        queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+        queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
+      ]);
+    }
+  });
+}

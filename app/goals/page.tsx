@@ -3,18 +3,30 @@
 import { BigGoalCard } from "../../components/goals/big-goal-card";
 import { CreateBigGoalForm } from "../../components/goals/create-big-goal-form";
 import { CreateMediumGoalForm } from "../../components/goals/create-medium-goal-form";
+import { CreateTaskForm } from "../../components/tasks/create-task-form";
 import { Card } from "../../components/ui/card";
 import { useGoalTree, useSetMediumGoalCompletion } from "../../hooks/use-goals";
+import { useDeleteTask, useToggleTask } from "../../hooks/use-tasks";
 
 export default function GoalsPage() {
   const goalsQuery = useGoalTree();
   const setMediumCompletion = useSetMediumGoalCompletion();
+  const toggleTask = useToggleTask();
+  const deleteTask = useDeleteTask();
 
   const options = (goalsQuery.data ?? []).map((goal) => ({
     id: goal.id,
     title: goal.title,
     mediumCount: goal.medium_goals.length
   }));
+
+  const taskOptions = (goalsQuery.data ?? []).flatMap((goal) =>
+    goal.medium_goals.map((mediumGoal) => ({
+      id: mediumGoal.id,
+      title: mediumGoal.title,
+      bigGoalTitle: goal.title
+    }))
+  );
 
   return (
     <div className="space-y-section">
@@ -25,6 +37,7 @@ export default function GoalsPage() {
 
       <CreateBigGoalForm />
       <CreateMediumGoalForm options={options} />
+      <CreateTaskForm options={taskOptions} />
 
       <section className="space-y-3" aria-labelledby="goal-list-title">
         <h2 id="goal-list-title" className="text-base font-semibold">
@@ -52,6 +65,8 @@ export default function GoalsPage() {
                 onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
                   setMediumCompletion.mutate({ mediumGoalId, isCompleted })
                 }
+                onToggleTask={(taskId, completed) => toggleTask.mutate({ taskId, completed })}
+                onDeleteTask={(taskId) => deleteTask.mutate({ taskId })}
               />
             ))}
           </div>

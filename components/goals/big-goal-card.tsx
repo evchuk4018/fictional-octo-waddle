@@ -2,6 +2,8 @@ import { Card } from "../ui/card";
 import { CircularProgress } from "../ui/circular-progress";
 import { ProgressBar } from "../ui/progress-bar";
 import { Button } from "../ui/button";
+import { TaskList } from "../tasks/task-list";
+import { DailyTask } from "../../types/db";
 
 type MediumGoalView = {
   id: string;
@@ -9,7 +11,7 @@ type MediumGoalView = {
   due_date: string | null;
   is_completed: boolean;
   completionPercent: number;
-  daily_tasks: Array<{ id: string }>;
+  daily_tasks: DailyTask[];
 };
 
 type BigGoalCardProps = {
@@ -19,6 +21,8 @@ type BigGoalCardProps = {
   completionPercent: number;
   mediumGoals: MediumGoalView[];
   onToggleMediumCompletion: (mediumGoalId: string, isCompleted: boolean) => void;
+  onToggleTask: (taskId: string, completed: boolean) => void;
+  onDeleteTask?: (taskId: string) => void;
 };
 
 function formatDate(value: string | null) {
@@ -37,7 +41,9 @@ export function BigGoalCard({
   dueDate,
   completionPercent,
   mediumGoals,
-  onToggleMediumCompletion
+  onToggleMediumCompletion,
+  onToggleTask,
+  onDeleteTask
 }: BigGoalCardProps) {
   return (
     <Card className="space-y-cardGap">
@@ -68,6 +74,11 @@ export function BigGoalCard({
                   {mediumGoal.is_completed ? "Mark Incomplete" : "Mark Complete"}
                 </Button>
               </div>
+              <TaskList
+                tasks={mediumGoal.daily_tasks}
+                onToggleTask={(task, completed) => onToggleTask(task.id, completed)}
+                onDeleteTask={onDeleteTask ? (task) => onDeleteTask(task.id) : undefined}
+              />
             </div>
           ))
         )}

@@ -3,13 +3,12 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Home, Target, CheckSquare } from "lucide-react";
+import { Home, Target } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const links: Array<{ href: Route; label: string; icon: typeof Home }> = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/goals", label: "Goals", icon: Target },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare }
+  { href: "/goals", label: "Goals", icon: Target }
 ];
 
 export function BottomNav() {

@@ -106,6 +106,7 @@ export function DashboardClient({ email }: DashboardClientProps) {
                 onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
                   setMediumCompletion.mutate({ mediumGoalId, isCompleted })
                 }
+                onToggleTask={(taskId, completed) => toggleTask.mutate({ taskId, completed })}
               />
             ))}
           </div>
