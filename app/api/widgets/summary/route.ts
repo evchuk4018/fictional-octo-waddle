@@ -38,8 +38,6 @@ export async function GET() {
   return NextResponse.json({
     date,
     completionPercent,
-    totalTodayTasks: activeTasks.length,
-    completedTodayTasks: completed,
     totalActiveTasks: activeTasks.length,
     completedActiveTasks: completed,
     nextIncompleteTask: nextIncomplete,

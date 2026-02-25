@@ -8,6 +8,7 @@ import { DailyTask } from "../types/db";
 const TASKS_KEY = ["active-tasks"];
 const CALENDAR_KEY = ["task-calendar"];
 const CACHE_KEY = "goal-tracker.active-tasks";
+const ACTIVE_TASKS_SELECT = "id,medium_goal_id,title,completed,medium_goals!inner(is_completed)";
 
 function currentIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -19,14 +20,23 @@ function persistTasks(tasks: DailyTask[]) {
 }
 
 function readCachedTasks() {
-  if (typeof window === "undefined") return [] as DailyTask[];
+  if (typeof window === "undefined") return [];
   const raw = window.localStorage.getItem(CACHE_KEY);
-  if (!raw) return [] as DailyTask[];
+  if (!raw) return [];
   try {
     return JSON.parse(raw) as DailyTask[];
   } catch {
-    return [] as DailyTask[];
+    return [];
   }
+}
+
+function mapActiveTaskRows(rows: Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed">>): DailyTask[] {
+  return rows.map((task) => ({
+    id: task.id,
+    medium_goal_id: task.medium_goal_id,
+    title: task.title,
+    completed: task.completed
+  }));
 }
 
 type CalendarDayStatus = {
@@ -56,7 +66,7 @@ export function useActiveTasks() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_tasks")
-        .select("id,medium_goal_id,title,completed,medium_goals!inner(is_completed)")
+        .select(ACTIVE_TASKS_SELECT)
         .eq("medium_goals.is_completed", false)
         .order("completed", { ascending: true })
         .order("title", { ascending: true });
@@ -67,16 +77,7 @@ export function useActiveTasks() {
         throw error;
       }
 
-      const tasks = ((data ?? []) as Array<
-        DailyTask & {
-          medium_goals: Array<{ is_completed: boolean }>;
-        }
-      >).map((task) => ({
-        id: task.id,
-        medium_goal_id: task.medium_goal_id,
-        title: task.title,
-        completed: task.completed
-      }));
+      const tasks = mapActiveTaskRows((data ?? []) as Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed">>);
 
       persistTasks(tasks);
       return tasks;
@@ -94,12 +95,15 @@ export function useTaskCalendar() {
 
       const { data: activeTasks, error: activeTasksError } = await supabase
         .from("daily_tasks")
-        .select("id,medium_goals!inner(is_completed)")
+        .select(ACTIVE_TASKS_SELECT)
         .eq("medium_goals.is_completed", false);
 
       if (activeTasksError) throw activeTasksError;
 
-      const activeTaskIds = (activeTasks ?? []).map((task) => task.id);
+      const activeTaskRows = mapActiveTaskRows(
+        (activeTasks ?? []) as Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed">>
+      );
+      const activeTaskIds = activeTaskRows.map((task) => task.id);
       const completedByDate = new Map<string, number>();
 
       if (activeTaskIds.length > 0) {
@@ -161,7 +165,8 @@ export function useCreateTask() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["goals"] }),
-        queryClient.invalidateQueries({ queryKey: TASKS_KEY })
+        queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+        queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
       ]);
     }
   });
