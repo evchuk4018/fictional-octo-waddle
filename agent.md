@@ -27,7 +27,6 @@ This file is the single source of truth for all future development in this repos
   /goals
   /login
   /offline
-  /tasks
 /components
   /goals
   /providers

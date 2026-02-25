@@ -21,8 +21,9 @@ type BigGoalCardProps = {
   completionPercent: number;
   mediumGoals: MediumGoalView[];
   onToggleMediumCompletion: (mediumGoalId: string, isCompleted: boolean) => void;
-  onToggleTask: (taskId: string, completed: boolean) => void;
+  onToggleTask?: (taskId: string, completed: boolean) => void;
   onDeleteTask?: (taskId: string) => void;
+  showTasks?: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -43,7 +44,8 @@ export function BigGoalCard({
   mediumGoals,
   onToggleMediumCompletion,
   onToggleTask,
-  onDeleteTask
+  onDeleteTask,
+  showTasks = false
 }: BigGoalCardProps) {
   return (
     <Card className="space-y-cardGap">
@@ -74,11 +76,14 @@ export function BigGoalCard({
                   {mediumGoal.is_completed ? "Mark Incomplete" : "Mark Complete"}
                 </Button>
               </div>
-              <TaskList
-                tasks={mediumGoal.daily_tasks}
-                onToggleTask={(task, completed) => onToggleTask(task.id, completed)}
-                onDeleteTask={onDeleteTask ? (task) => onDeleteTask(task.id) : undefined}
-              />
+              {showTasks && onToggleTask ? (
+                <TaskList
+                  tasks={mediumGoal.daily_tasks}
+                  onToggleTask={(task, completed) => onToggleTask(task.id, completed)}
+                  onDeleteTask={onDeleteTask ? (task) => onDeleteTask(task.id) : undefined}
+                  emptyMessage="No daily tasks for this medium goal yet."
+                />
+              ) : null}
             </div>
           ))
         )}

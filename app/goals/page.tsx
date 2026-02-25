@@ -65,6 +65,7 @@ export default function GoalsPage() {
                 onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
                   setMediumCompletion.mutate({ mediumGoalId, isCompleted })
                 }
+                showTasks
                 onToggleTask={(taskId, completed) => toggleTask.mutate({ taskId, completed })}
                 onDeleteTask={(taskId) => deleteTask.mutate({ taskId })}
               />

@@ -7,13 +7,14 @@ type TaskListProps = {
   tasks: DailyTask[];
   onToggleTask: (task: DailyTask, completed: boolean) => void;
   onDeleteTask?: (task: DailyTask) => void;
+  emptyMessage?: string;
 };
 
-export function TaskList({ tasks, onToggleTask, onDeleteTask }: TaskListProps) {
+export function TaskList({ tasks, onToggleTask, onDeleteTask, emptyMessage = "No active daily tasks right now." }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <div className="rounded-card bg-card p-card text-sm text-text-secondary" role="status">
-        No active daily tasks right now.
+        {emptyMessage}
       </div>
     );
   }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { DailyTask } from "../../types/db";
+import { cn } from "../../lib/utils";
 
 type TaskItemProps = {
   task: DailyTask;
@@ -10,15 +11,24 @@ type TaskItemProps = {
   onDelete?: () => void;
 };
 
+const SWIPE_DELETE_THRESHOLD = -80;
+const SWIPE_MID_TONE_THRESHOLD = -30;
+const SWIPE_HIGH_TONE_THRESHOLD = -70;
+
 export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
   const [swipeOffset, setSwipeOffset] = useState(0);
+
   const swipeToneClass =
-    swipeOffset <= -70 ? "border-red-300 bg-red-100" : swipeOffset <= -30 ? "border-red-200 bg-red-50" : "border-accent bg-card";
+    swipeOffset <= SWIPE_HIGH_TONE_THRESHOLD
+      ? "border-red-300 bg-red-100"
+      : swipeOffset <= SWIPE_MID_TONE_THRESHOLD
+        ? "border-red-200 bg-red-50"
+        : "border-accent bg-card";
 
   return (
     <motion.label
       layout
-      className={`flex items-center gap-3 rounded-button border px-4 py-3 transition-colors ${swipeToneClass}`}
+      className={cn("flex items-center gap-3 rounded-button border px-4 py-3 transition-colors", swipeToneClass)}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       drag={onDelete ? "x" : false}
@@ -31,7 +41,7 @@ export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
       onDragEnd={(_, info) => {
         setSwipeOffset(0);
         if (!onDelete) return;
-        if (info.offset.x <= -80) {
+        if (info.offset.x <= SWIPE_DELETE_THRESHOLD) {
           onDelete();
         }
       }}
