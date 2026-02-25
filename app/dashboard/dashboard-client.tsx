@@ -5,8 +5,9 @@ import { Button } from "../../components/ui/button";
 import { BigGoalCard } from "../../components/goals/big-goal-card";
 import { TaskList } from "../../components/tasks/task-list";
 import { useAuth } from "../../hooks/use-auth";
-import { useGoalTree } from "../../hooks/use-goals";
-import { useTodayTasks, useToggleTask } from "../../hooks/use-tasks";
+import { CompletionCalendar } from "../../components/ui/completion-calendar";
+import { useGoalTree, useSetMediumGoalCompletion } from "../../hooks/use-goals";
+import { useActiveTasks, useTaskCalendar, useToggleTask } from "../../hooks/use-tasks";
 import { toPercent } from "../../lib/utils";
 
 type DashboardClientProps = {
@@ -16,46 +17,67 @@ type DashboardClientProps = {
 export function DashboardClient({ email }: DashboardClientProps) {
   const { signOut } = useAuth();
   const goalsQuery = useGoalTree();
-  const todayTasksQuery = useTodayTasks();
+  const activeTasksQuery = useActiveTasks();
+  const calendarQuery = useTaskCalendar();
   const toggleTask = useToggleTask();
+  const setMediumCompletion = useSetMediumGoalCompletion();
 
-  const todayTasks = todayTasksQuery.data ?? [];
-  const completedCount = todayTasks.filter((task) => task.completed).length;
-  const completion = toPercent(completedCount, todayTasks.length);
-  const nextTask = todayTasks.find((task) => !task.completed);
+  const activeTasks = activeTasksQuery.data ?? [];
+  const completedCount = activeTasks.filter((task) => task.completed).length;
+  const completion = toPercent(completedCount, activeTasks.length);
+  const nextTask = activeTasks.find((task) => !task.completed);
 
   return (
     <div className="space-y-section">
       <header className="space-y-1">
         <p className="text-sm text-text-secondary">Signed in as {email}</p>
-        <h1 className="text-2xl font-semibold">Today</h1>
+        <h1 className="text-2xl font-semibold">Home</h1>
       </header>
 
       <Card className="space-y-2">
-        <p className="text-sm text-text-secondary">Today&apos;s completion</p>
+        <p className="text-sm text-text-secondary">Active task completion</p>
         <p className="text-2xl font-semibold">{completion}%</p>
         <p className="text-sm text-text-secondary">
-          {nextTask ? `Next incomplete: ${nextTask.title}` : "All today tasks completed."}
+          {nextTask ? `Next incomplete: ${nextTask.title}` : "All active tasks completed."}
         </p>
       </Card>
 
-      <section className="space-y-3" aria-labelledby="today-tasks-title">
-        <h2 id="today-tasks-title" className="text-base font-semibold">
-          Today&apos;s Tasks
+      <section className="space-y-3" aria-labelledby="active-tasks-title">
+        <h2 id="active-tasks-title" className="text-base font-semibold">
+          Active Daily Tasks
         </h2>
-        {todayTasksQuery.isLoading ? (
+        {activeTasksQuery.isLoading ? (
           <Card>
-            <p className="text-sm text-text-secondary">Loading today&apos;s tasks...</p>
+            <p className="text-sm text-text-secondary">Loading active tasks...</p>
           </Card>
-        ) : todayTasksQuery.isError ? (
+        ) : activeTasksQuery.isError ? (
           <Card>
             <p className="text-sm text-red-700">Unable to load tasks.</p>
           </Card>
         ) : (
           <TaskList
-            tasks={todayTasks}
+            tasks={activeTasks}
             onToggleTask={(task, completed) => toggleTask.mutate({ taskId: task.id, completed })}
           />
+        )}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="calendar-title">
+        <h2 id="calendar-title" className="text-base font-semibold">
+          Accountability Calendar
+        </h2>
+        {calendarQuery.isLoading ? (
+          <Card>
+            <p className="text-sm text-text-secondary">Loading calendar...</p>
+          </Card>
+        ) : calendarQuery.isError ? (
+          <Card>
+            <p className="text-sm text-red-700">Unable to load calendar.</p>
+          </Card>
+        ) : (
+          <Card>
+            <CompletionCalendar days={calendarQuery.data ?? []} />
+          </Card>
         )}
       </section>
 
@@ -78,8 +100,12 @@ export function DashboardClient({ email }: DashboardClientProps) {
                 key={goal.id}
                 title={goal.title}
                 description={goal.description}
+                dueDate={goal.due_date}
                 completionPercent={goal.completionPercent}
                 mediumGoals={goal.medium_goals}
+                onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
+                  setMediumCompletion.mutate({ mediumGoalId, isCompleted })
+                }
               />
             ))}
           </div>

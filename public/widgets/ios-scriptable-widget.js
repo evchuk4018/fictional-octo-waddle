@@ -25,8 +25,8 @@ async function buildWidget() {
 
   addText(widget, "Goal Tracker", 14, new Color("#2F5D5A"), "semibold");
   widget.addSpacer(6);
-  addText(widget, `Today: ${summary.completionPercent}%`, 12, new Color("#1F2D2B"), "semibold");
-  addText(widget, `Tasks: ${summary.completedTodayTasks}/${summary.totalTodayTasks}`, 11, new Color("#6B7F7C"));
+  addText(widget, `Active: ${summary.completionPercent}%`, 12, new Color("#1F2D2B"), "semibold");
+  addText(widget, `Tasks: ${summary.completedActiveTasks}/${summary.totalActiveTasks}`, 11, new Color("#6B7F7C"));
   widget.addSpacer(4);
   addText(widget, summary.nextIncompleteTask ? `Next: ${summary.nextIncompleteTask.title}` : "All tasks complete", 11);
 

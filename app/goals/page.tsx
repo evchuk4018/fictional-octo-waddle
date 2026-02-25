@@ -4,10 +4,11 @@ import { BigGoalCard } from "../../components/goals/big-goal-card";
 import { CreateBigGoalForm } from "../../components/goals/create-big-goal-form";
 import { CreateMediumGoalForm } from "../../components/goals/create-medium-goal-form";
 import { Card } from "../../components/ui/card";
-import { useGoalTree } from "../../hooks/use-goals";
+import { useGoalTree, useSetMediumGoalCompletion } from "../../hooks/use-goals";
 
 export default function GoalsPage() {
   const goalsQuery = useGoalTree();
+  const setMediumCompletion = useSetMediumGoalCompletion();
 
   const options = (goalsQuery.data ?? []).map((goal) => ({
     id: goal.id,
@@ -45,8 +46,12 @@ export default function GoalsPage() {
                 key={goal.id}
                 title={goal.title}
                 description={goal.description}
+                dueDate={goal.due_date}
                 completionPercent={goal.completionPercent}
                 mediumGoals={goal.medium_goals}
+                onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
+                  setMediumCompletion.mutate({ mediumGoalId, isCompleted })
+                }
               />
             ))}
           </div>

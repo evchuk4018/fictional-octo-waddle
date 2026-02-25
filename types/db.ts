@@ -5,6 +5,7 @@ export type BigGoal = {
   user_id: UUID;
   title: string;
   description: string | null;
+  due_date: string | null;
   created_at: string;
 };
 
@@ -12,6 +13,9 @@ export type MediumGoal = {
   id: UUID;
   big_goal_id: UUID;
   title: string;
+  due_date: string | null;
+  is_completed: boolean;
+  completed_at: string | null;
   order_index: number;
 };
 
@@ -20,7 +24,14 @@ export type DailyTask = {
   medium_goal_id: UUID;
   title: string;
   completed: boolean;
-  due_date: string;
+};
+
+export type DailyTaskCheckin = {
+  id: UUID;
+  task_id: UUID;
+  checkin_date: string;
+  completed: boolean;
+  created_at: string;
 };
 
 export type GoalTree = BigGoal & {

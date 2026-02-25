@@ -8,7 +8,7 @@ export default function OfflinePage() {
       <Card className="w-full space-y-3 text-center">
         <h1 className="text-xl font-semibold">You are offline</h1>
         <p className="text-sm text-text-secondary">
-          Cached tasks are still visible in the app. Reconnect to sync your latest progress.
+          Cached active tasks are still visible in the app. Reconnect to sync your latest progress.
         </p>
         <Button asChild>
           <Link href="/dashboard">Open Dashboard</Link>

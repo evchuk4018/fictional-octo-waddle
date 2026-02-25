@@ -47,9 +47,9 @@ Production-ready mobile-first goal-tracking app built with Next.js 14 + Supabase
 	- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 	- `SUPABASE_SERVICE_ROLE_KEY` (optional for admin scripts)
 
-4. Run Supabase SQL migration:
+4. Run Supabase SQL migrations:
 
-	- Execute `supabase/migrations/001_initial_schema.sql` in your Supabase SQL editor.
+	- Execute `supabase/migrations/001_initial_schema.sql` first, then `supabase/migrations/002_goal_due_dates_and_daily_checkins.sql`.
 
 5. Start app:
 
@@ -60,12 +60,15 @@ Production-ready mobile-first goal-tracking app built with Next.js 14 + Supabase
 ## App Features
 
 - Big Goals → Medium Goals → Daily Tasks hierarchy
+- Due dates on Big Goals and Medium Goals
+- Manual Medium Goal completion to control active accountability tasks
 - Completion percentage tracking at each level
-- Today-first dashboard with next incomplete task
+- Home dashboard with all active daily tasks across incomplete medium goals
+- Monthly accountability calendar (red: none, yellow: some, green: all)
 - Email/password auth + OAuth-ready Google sign-in
 - Session persistence across refresh and PWA install
 - Protected routes via middleware
-- Offline-friendly today task viewing (cached fallback)
+- Offline-friendly active task viewing (cached fallback)
 - Widget summary API for iOS Scriptable integration
 
 ## iOS PWA + Widgets

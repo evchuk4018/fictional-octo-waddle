@@ -127,14 +127,14 @@ Goal hierarchy logic:
 
 - `big_goals` are long-term outcomes.
 - `medium_goals` are ordered milestones linked to a big goal.
-- `daily_tasks` are checkable items linked to a medium goal and due date.
+- `daily_tasks` are accountability checkboxes linked to a medium goal.
 
 Task completion rules:
 
 - Checking a task updates `completed` state in Supabase.
 - Completion percentages recalculate from task states.
-- Dashboard highlights today’s next incomplete task.
-- Offline mode shows cached today tasks when network fetch fails.
+- Dashboard highlights the next incomplete active task across incomplete medium goals.
+- Offline mode shows cached active tasks when network fetch fails.
 
 Animation rules:
 

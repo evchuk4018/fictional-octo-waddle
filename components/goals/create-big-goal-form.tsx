@@ -11,7 +11,8 @@ import { Button } from "../ui/button";
 
 const schema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(120, "Title is too long"),
-  description: z.string().max(400, "Description is too long").optional()
+  description: z.string().max(400, "Description is too long").optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid due date")
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -25,7 +26,7 @@ export function CreateBigGoalForm() {
     reset
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { title: "", description: "" }
+    defaultValues: { title: "", description: "", dueDate: "" }
   });
 
   return (
@@ -47,6 +48,11 @@ export function CreateBigGoalForm() {
           <span className="text-text-secondary">Description</span>
           <Textarea {...register("description")} placeholder="What does success look like?" />
           {errors.description ? <p className="text-xs text-red-600">{errors.description.message}</p> : null}
+        </label>
+        <label className="space-y-1 text-sm">
+          <span className="text-text-secondary">Due Date</span>
+          <Input type="date" aria-invalid={Boolean(errors.dueDate)} {...register("dueDate")} />
+          {errors.dueDate ? <p className="text-xs text-red-600">{errors.dueDate.message}</p> : null}
         </label>
         <Button type="submit" disabled={createBigGoal.isPending} className="w-full">
           {createBigGoal.isPending ? "Saving..." : "Add Big Goal"}

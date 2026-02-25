@@ -14,12 +14,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-
   const { data: tasks, error: tasksError } = await supabase
     .from("daily_tasks")
-    .select("id,title,completed,due_date")
-    .eq("due_date", today)
+    .select("id,title,completed,medium_goals!inner(is_completed)")
+    .eq("medium_goals.is_completed", false)
     .order("completed", { ascending: true })
     .limit(20);
 
@@ -27,17 +25,24 @@ export async function GET() {
     return NextResponse.json({ error: tasksError.message }, { status: 500 });
   }
 
-  const todayTasks = tasks ?? [];
-  const completed = todayTasks.filter((task) => task.completed).length;
-  const completionPercent = toPercent(completed, todayTasks.length);
-  const nextIncomplete = todayTasks.find((task) => !task.completed) ?? null;
+  const activeTasks = (tasks ?? []).map((task) => ({
+    id: task.id,
+    title: task.title,
+    completed: task.completed
+  }));
+  const completed = activeTasks.filter((task) => task.completed).length;
+  const completionPercent = toPercent(completed, activeTasks.length);
+  const nextIncomplete = activeTasks.find((task) => !task.completed) ?? null;
+  const date = new Date().toISOString().slice(0, 10);
 
   return NextResponse.json({
-    date: today,
+    date,
     completionPercent,
-    totalTodayTasks: todayTasks.length,
+    totalTodayTasks: activeTasks.length,
     completedTodayTasks: completed,
+    totalActiveTasks: activeTasks.length,
+    completedActiveTasks: completed,
     nextIncompleteTask: nextIncomplete,
-    tasks: todayTasks
+    tasks: activeTasks
   });
 }

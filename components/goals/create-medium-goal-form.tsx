@@ -16,7 +16,8 @@ type BigGoalOption = {
 
 const schema = z.object({
   bigGoalId: z.string().uuid("Select a valid big goal"),
-  title: z.string().min(3, "Title must be at least 3 characters").max(120, "Title is too long")
+  title: z.string().min(3, "Title must be at least 3 characters").max(120, "Title is too long"),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid due date")
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -45,7 +46,8 @@ export function CreateMediumGoalForm({ options }: CreateMediumGoalFormProps) {
           await createMediumGoal.mutateAsync({
             bigGoalId: values.bigGoalId,
             title: values.title,
-            orderIndex: selected?.mediumCount ?? 0
+            orderIndex: selected?.mediumCount ?? 0,
+            dueDate: values.dueDate
           });
           reset();
         })}
@@ -74,6 +76,11 @@ export function CreateMediumGoalForm({ options }: CreateMediumGoalFormProps) {
           <span className="text-text-secondary">Title</span>
           <Input aria-invalid={Boolean(errors.title)} {...register("title")} placeholder="Get first 100 users" />
           {errors.title ? <p className="text-xs text-red-600">{errors.title.message}</p> : null}
+        </label>
+        <label className="space-y-1 text-sm">
+          <span className="text-text-secondary">Due Date</span>
+          <Input type="date" aria-invalid={Boolean(errors.dueDate)} {...register("dueDate")} />
+          {errors.dueDate ? <p className="text-xs text-red-600">{errors.dueDate.message}</p> : null}
         </label>
         <Button type="submit" disabled={createMediumGoal.isPending || options.length === 0} className="w-full">
           {createMediumGoal.isPending ? "Saving..." : "Add Medium Goal"}

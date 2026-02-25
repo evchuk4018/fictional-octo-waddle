@@ -20,6 +20,11 @@ const config: Config = {
         progress: {
           filled: "#2F5D5A",
           empty: "#D5E4E1"
+        },
+        status: {
+          none: "#DC2626",
+          partial: "#D97706",
+          all: "#16A34A"
         }
       },
       borderRadius: {

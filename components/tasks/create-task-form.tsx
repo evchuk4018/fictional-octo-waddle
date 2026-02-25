@@ -16,8 +16,7 @@ type MediumGoalOption = {
 
 const schema = z.object({
   mediumGoalId: z.string().uuid("Select a valid medium goal"),
-  title: z.string().min(2, "Task title must be at least 2 characters").max(120, "Task title is too long"),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date")
+  title: z.string().min(2, "Task title must be at least 2 characters").max(120, "Task title is too long")
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -25,10 +24,6 @@ type FormValues = z.infer<typeof schema>;
 type CreateTaskFormProps = {
   options: MediumGoalOption[];
 };
-
-function todayDateInput() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function CreateTaskForm({ options }: CreateTaskFormProps) {
   const createTask = useCreateTask();
@@ -38,10 +33,7 @@ export function CreateTaskForm({ options }: CreateTaskFormProps) {
     formState: { errors },
     reset
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      dueDate: todayDateInput()
-    }
+    resolver: zodResolver(schema)
   });
 
   return (
@@ -50,7 +42,7 @@ export function CreateTaskForm({ options }: CreateTaskFormProps) {
         className="space-y-3"
         onSubmit={handleSubmit(async (values) => {
           await createTask.mutateAsync(values);
-          reset({ dueDate: values.dueDate });
+          reset();
         })}
       >
         <h2 className="text-base font-semibold">Add Daily Task</h2>
@@ -77,11 +69,6 @@ export function CreateTaskForm({ options }: CreateTaskFormProps) {
           <span className="text-text-secondary">Task Title</span>
           <Input aria-invalid={Boolean(errors.title)} {...register("title")} placeholder="Publish landing page" />
           {errors.title ? <p className="text-xs text-red-600">{errors.title.message}</p> : null}
-        </label>
-        <label className="space-y-1 text-sm">
-          <span className="text-text-secondary">Due Date</span>
-          <Input type="date" aria-invalid={Boolean(errors.dueDate)} {...register("dueDate")} />
-          {errors.dueDate ? <p className="text-xs text-red-600">{errors.dueDate.message}</p> : null}
         </label>
         <Button type="submit" className="w-full" disabled={createTask.isPending || options.length === 0}>
           {createTask.isPending ? "Saving..." : "Add Task"}

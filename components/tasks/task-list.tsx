@@ -12,7 +12,7 @@ export function TaskList({ tasks, onToggleTask }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <div className="rounded-card bg-card p-card text-sm text-text-secondary" role="status">
-        No tasks for today.
+        No active daily tasks right now.
       </div>
     );
   }
