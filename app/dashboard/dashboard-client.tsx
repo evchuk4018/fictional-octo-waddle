@@ -22,11 +22,18 @@ export function DashboardClient() {
   const setMediumCompletion = useSetMediumGoalCompletion();
   const [showWidgetInstructions, setShowWidgetInstructions] = useState(false);
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+  const [copyMessage, setCopyMessage] = useState("");
+  const [copyDebugLogs, setCopyDebugLogs] = useState<string[]>([]);
 
   const activeTasks = activeTasksQuery.data ?? [];
   const completedCount = activeTasks.filter((task) => task.completed).length;
   const completion = toPercent(completedCount, activeTasks.length);
   const nextTask = activeTasks.find((task) => !task.completed);
+
+  const addCopyDebugLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setCopyDebugLogs((current) => [`${timestamp} — ${message}`, ...current].slice(0, 12));
+  };
 
   const fallbackCopy = (text: string): boolean => {
     try {
@@ -42,9 +49,11 @@ export function DashboardClient() {
       textarea.setSelectionRange(0, text.length);
       const ok = document.execCommand("copy");
       document.body.removeChild(textarea);
+      addCopyDebugLog(`Fallback copy result: ${ok ? "success" : "failed"}`);
       console.log("[copy] fallback execCommand result:", ok);
       return ok;
     } catch (err) {
+      addCopyDebugLog(`Fallback copy threw: ${err instanceof Error ? err.message : "unknown error"}`);
       console.error("[copy] fallback execCommand error:", err);
       return false;
     }
@@ -53,16 +62,23 @@ export function DashboardClient() {
   const handleCopyWidgetCode = async () => {
     console.log("[copy] starting widget script copy");
     setCopyStatus("idle");
+    setCopyMessage("");
+    addCopyDebugLog("Starting copy flow");
     try {
       const response = await fetch("/api/widgets/script", {
         cache: "no-store",
         credentials: "same-origin",
       });
+      addCopyDebugLog(
+        `Fetch status ${response.status}, content-type: ${response.headers.get("content-type") ?? "none"}`
+      );
       console.log("[copy] fetch status:", response.status, "type:", response.headers.get("content-type"), "url:", response.url);
 
       if (!response.ok) {
         const body = await response.text();
         console.error("[copy] non-ok response body:", body.slice(0, 300));
+        addCopyDebugLog(`Non-OK response body: ${body.slice(0, 120)}`);
+        setCopyMessage(`Could not load script (${response.status}). ${body.slice(0, 120)}`);
         setCopyStatus("error");
         window.setTimeout(() => setCopyStatus("idle"), 4000);
         return;
@@ -71,9 +87,12 @@ export function DashboardClient() {
       const contentType = response.headers.get("content-type") ?? "";
       const scriptCode = await response.text();
       console.log("[copy] response length:", scriptCode.length, "content-type:", contentType);
+      addCopyDebugLog(`Response text length: ${scriptCode.length}`);
 
       if (contentType.includes("text/html") || scriptCode.trimStart().startsWith("<!DOCTYPE") || scriptCode.trimStart().startsWith("<html")) {
         console.error("[copy] received HTML instead of script — likely a redirect to login page");
+        addCopyDebugLog("Received HTML instead of script (likely redirect/login page)");
+        setCopyMessage("Received a login/HTML page instead of widget script. Sign in again, then retry.");
         setCopyStatus("error");
         window.setTimeout(() => setCopyStatus("idle"), 4000);
         return;
@@ -81,6 +100,8 @@ export function DashboardClient() {
 
       if (!scriptCode || scriptCode.length < 50) {
         console.error("[copy] script response empty or too short:", scriptCode.length);
+        addCopyDebugLog(`Script empty/too short: ${scriptCode.length}`);
+        setCopyMessage("Script was empty or incomplete. Sign out/in and try again.");
         setCopyStatus("error");
         window.setTimeout(() => setCopyStatus("idle"), 4000);
         return;
@@ -91,11 +112,14 @@ export function DashboardClient() {
         try {
           await navigator.clipboard.writeText(scriptCode);
           copied = true;
+          addCopyDebugLog("Clipboard API copy succeeded");
           console.log("[copy] clipboard API succeeded");
         } catch (clipErr) {
+          addCopyDebugLog(`Clipboard API failed: ${clipErr instanceof Error ? clipErr.message : "unknown error"}`);
           console.warn("[copy] clipboard API failed, trying fallback:", clipErr);
         }
       } else {
+        addCopyDebugLog("Clipboard API unavailable, trying fallback");
         console.warn("[copy] clipboard API not available, using fallback");
       }
 
@@ -104,14 +128,19 @@ export function DashboardClient() {
       }
 
       if (copied) {
+        setCopyMessage("Widget script copied successfully.");
         setCopyStatus("copied");
         window.setTimeout(() => setCopyStatus("idle"), 2500);
       } else {
         console.error("[copy] all copy methods failed");
+        addCopyDebugLog("All copy methods failed");
+        setCopyMessage("Copy failed on this browser. Use the debug logs below and try again after re-login.");
         setCopyStatus("error");
         window.setTimeout(() => setCopyStatus("idle"), 4000);
       }
     } catch (err) {
+      addCopyDebugLog(`Unexpected error: ${err instanceof Error ? err.message : "unknown error"}`);
+      setCopyMessage(`Unexpected error: ${err instanceof Error ? err.message : "unknown error"}`);
       console.error("[copy] unexpected error:", err);
       setCopyStatus("error");
       window.setTimeout(() => setCopyStatus("idle"), 4000);
@@ -140,6 +169,30 @@ export function DashboardClient() {
                 ? "Could not copy. Try again."
                 : ""}
           </p>
+        </div>
+        {copyMessage ? <p className="text-xs text-text-secondary">{copyMessage}</p> : null}
+
+        <div className="rounded-md border border-border bg-background p-3 text-xs">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="font-semibold text-text-primary">Widget copy debug</p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-7 px-2 py-1 text-xs"
+              onClick={() => setCopyDebugLogs([])}
+            >
+              Clear
+            </Button>
+          </div>
+          {copyDebugLogs.length > 0 ? (
+            <ul className="space-y-1 text-text-secondary">
+              {copyDebugLogs.map((entry) => (
+                <li key={entry}>{entry}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-text-secondary">No logs yet. Tap “Copy current script” to capture diagnostics.</p>
+          )}
         </div>
       </header>
 
