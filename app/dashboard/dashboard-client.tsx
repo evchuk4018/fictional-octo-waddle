@@ -9,6 +9,7 @@ import { useAuth } from "../../hooks/use-auth";
 import { CompletionCalendar } from "../../components/ui/completion-calendar";
 import { useGoalTree, useSetMediumGoalCompletion } from "../../hooks/use-goals";
 import { useActiveTasks, useTaskCalendar, useToggleTask } from "../../hooks/use-tasks";
+import { useWidgetToken, useRevokeWidgetToken } from "../../hooks/use-widget-token";
 import { toPercent } from "../../lib/utils";
 
 type CopyStatus = "idle" | "copied" | "error";
@@ -20,7 +21,10 @@ export function DashboardClient() {
   const calendarQuery = useTaskCalendar();
   const toggleTask = useToggleTask();
   const setMediumCompletion = useSetMediumGoalCompletion();
+  const widgetTokenQuery = useWidgetToken();
+  const revokeToken = useRevokeWidgetToken();
   const [showWidgetInstructions, setShowWidgetInstructions] = useState(false);
+  const [showToken, setShowToken] = useState(false);
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
 
   const activeTasks = activeTasksQuery.data ?? [];
@@ -45,57 +49,89 @@ export function DashboardClient() {
     }
   };
 
+  const handleRevokeToken = async () => {
+    await revokeToken.mutateAsync();
+  };
+
+  const token = widgetTokenQuery.data?.token;
+  const maskedToken = token ? `${token.slice(0, 4)}${"•".repeat(token.length - 4)}` : "";
+
   return (
     <div className="space-y-section">
       <header>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold">Home</h1>
-          <Button type="button" variant="secondary" onClick={handleCopyWidgetCode}>
-            Copy current script
-          </Button>
           <Button
             type="button"
             variant="secondary"
             onClick={() => setShowWidgetInstructions((current) => !current)}
           >
-            {showWidgetInstructions ? "Hide instructions" : "View instructions"}
+            {showWidgetInstructions ? "Hide widget setup" : "iOS widget setup"}
           </Button>
-          <p className="text-sm text-text-secondary" role="status" aria-live="polite">
-            {copyStatus === "copied"
-              ? "Copied!"
-              : copyStatus === "error"
-                ? "Could not copy. Try again."
-                : ""}
-          </p>
         </div>
       </header>
 
       {showWidgetInstructions ? (
-        <Card className="space-y-3">
-          <h2 className="text-base font-semibold">iOS widget setup</h2>
+        <Card className="space-y-4">
+          <h2 className="text-base font-semibold">iOS widget setup (one-time)</h2>
+
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Your widget token</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="rounded bg-[#E6F0EE] px-2 py-1 text-xs text-text-primary">
+                {widgetTokenQuery.isLoading ? "Loading…" : showToken ? token : maskedToken}
+              </code>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowToken((v) => !v)}
+                disabled={widgetTokenQuery.isLoading}
+              >
+                {showToken ? "Hide" : "Show"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" onClick={handleCopyWidgetCode} disabled={widgetTokenQuery.isLoading}>
+              Copy Scriptable script
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleRevokeToken}
+              disabled={revokeToken.isPending || widgetTokenQuery.isLoading}
+            >
+              {revokeToken.isPending ? "Regenerating…" : "Regenerate token"}
+            </Button>
+            <p className="text-sm text-text-secondary" role="status" aria-live="polite">
+              {copyStatus === "copied"
+                ? "Copied!"
+                : copyStatus === "error"
+                  ? "Could not copy. Try again."
+                  : ""}
+            </p>
+          </div>
+
           <ol className="list-decimal space-y-2 pl-5 text-sm text-text-secondary">
             <li>
-              Install the PWA in Safari via Share → Add to Home Screen, then launch from the home screen.
+              Install the PWA in Safari via Share → Add to Home Screen, then launch from the home
+              screen.
             </li>
             <li>
-              Log in from this dashboard, then tap
-              <span className="font-semibold text-text-primary"> Copy current script</span> to copy a
-              Scriptable script that already contains your current auth cookie.
+              Tap{" "}
+              <span className="font-semibold text-text-primary">Copy Scriptable script</span> — the
+              script already contains your personal widget token.
             </li>
             <li>
-              In Scriptable, create a new script and paste the copied code. The endpoint is already set to
-              <span className="font-semibold text-text-primary">
-                {" "}
-                https://theapp-blue.vercel.app/api/widgets/summary
-              </span>
-              and the cookie is prefilled.
+              In Scriptable, create a new script and paste the copied code. Run it once to allow
+              network access.
             </li>
+            <li>Add a Scriptable widget and select this script. The widget will stay up automatically.</li>
             <li>
-              Run the script once to allow network access, then add a Scriptable widget and select this
-              script.
-            </li>
-            <li>
-              If the widget stops authenticating, log in again and copy a fresh current script.
+              If you suspect your token is compromised, tap{" "}
+              <span className="font-semibold text-text-primary">Regenerate token</span>, then
+              copy and paste the script once more.
             </li>
           </ol>
         </Card>
@@ -190,3 +226,4 @@ export function DashboardClient() {
     </div>
   );
 }
+

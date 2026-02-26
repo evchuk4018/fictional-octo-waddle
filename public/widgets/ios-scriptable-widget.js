@@ -1,11 +1,9 @@
-const endpoint = "https://theapp-blue.vercel.app/api/widgets/summary";
+const TOKEN = "YOUR_WIDGET_TOKEN";
+const endpoint = `https://theapp-blue.vercel.app/api/widgets/summary?token=${TOKEN}`;
 
 async function fetchSummary() {
   const req = new Request(endpoint);
   req.method = "GET";
-  req.headers = {
-    Cookie: "YOUR_AUTH_COOKIE"
-  };
   return await req.loadJSON();
 }
 
