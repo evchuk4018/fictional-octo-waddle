@@ -28,20 +28,93 @@ export function DashboardClient() {
   const completion = toPercent(completedCount, activeTasks.length);
   const nextTask = activeTasks.find((task) => !task.completed);
 
-  const handleCopyWidgetCode = async () => {
+  const fallbackCopy = (text: string): boolean => {
     try {
-      const response = await fetch("/api/widgets/script", { cache: "no-store" });
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, text.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      console.log("[copy] fallback execCommand result:", ok);
+      return ok;
+    } catch (err) {
+      console.error("[copy] fallback execCommand error:", err);
+      return false;
+    }
+  };
+
+  const handleCopyWidgetCode = async () => {
+    console.log("[copy] starting widget script copy");
+    setCopyStatus("idle");
+    try {
+      const response = await fetch("/api/widgets/script", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      console.log("[copy] fetch status:", response.status, "type:", response.headers.get("content-type"), "url:", response.url);
+
       if (!response.ok) {
-        throw new Error("Unable to load widget script");
+        const body = await response.text();
+        console.error("[copy] non-ok response body:", body.slice(0, 300));
+        setCopyStatus("error");
+        window.setTimeout(() => setCopyStatus("idle"), 4000);
+        return;
       }
 
+      const contentType = response.headers.get("content-type") ?? "";
       const scriptCode = await response.text();
-      await navigator.clipboard.writeText(scriptCode);
-      setCopyStatus("copied");
-      window.setTimeout(() => setCopyStatus("idle"), 2500);
-    } catch {
+      console.log("[copy] response length:", scriptCode.length, "content-type:", contentType);
+
+      if (contentType.includes("text/html") || scriptCode.trimStart().startsWith("<!DOCTYPE") || scriptCode.trimStart().startsWith("<html")) {
+        console.error("[copy] received HTML instead of script — likely a redirect to login page");
+        setCopyStatus("error");
+        window.setTimeout(() => setCopyStatus("idle"), 4000);
+        return;
+      }
+
+      if (!scriptCode || scriptCode.length < 50) {
+        console.error("[copy] script response empty or too short:", scriptCode.length);
+        setCopyStatus("error");
+        window.setTimeout(() => setCopyStatus("idle"), 4000);
+        return;
+      }
+
+      let copied = false;
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        try {
+          await navigator.clipboard.writeText(scriptCode);
+          copied = true;
+          console.log("[copy] clipboard API succeeded");
+        } catch (clipErr) {
+          console.warn("[copy] clipboard API failed, trying fallback:", clipErr);
+        }
+      } else {
+        console.warn("[copy] clipboard API not available, using fallback");
+      }
+
+      if (!copied) {
+        copied = fallbackCopy(scriptCode);
+      }
+
+      if (copied) {
+        setCopyStatus("copied");
+        window.setTimeout(() => setCopyStatus("idle"), 2500);
+      } else {
+        console.error("[copy] all copy methods failed");
+        setCopyStatus("error");
+        window.setTimeout(() => setCopyStatus("idle"), 4000);
+      }
+    } catch (err) {
+      console.error("[copy] unexpected error:", err);
       setCopyStatus("error");
-      window.setTimeout(() => setCopyStatus("idle"), 3000);
+      window.setTimeout(() => setCopyStatus("idle"), 4000);
     }
   };
 

@@ -57,8 +57,12 @@ export async function middleware(request: NextRequest) {
 
   console.log("[middleware] session:", session ? "exists" : "none", "path:", request.nextUrl.pathname);
 
-  const publicPaths = ["/login", "/api/widgets/summary", "/manifest.webmanifest"];
-  const isPublic = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
+  const publicPaths = ["/login", "/api/widgets/summary", "/api/widgets/script", "/manifest.webmanifest"];
+  const isPublic = publicPaths.some((p) => request.nextUrl.pathname.startsWith(p));
+
+  if (isPublic) {
+    console.log("[middleware] public path, passing through:", request.nextUrl.pathname);
+  }
 
   if (!session && !isPublic) {
     console.log("[middleware] no session, redirecting to /login");
