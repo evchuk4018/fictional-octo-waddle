@@ -40,9 +40,49 @@ export function DashboardClient() {
       }
 
       const scriptCode = await response.text();
-      await navigator.clipboard.writeText(scriptCode);
-      setCopyStatus("copied");
-      window.setTimeout(() => setCopyStatus("idle"), 2500);
+
+      // Try the modern Clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(scriptCode);
+          setCopyStatus("copied");
+          window.setTimeout(() => setCopyStatus("idle"), 2500);
+          return;
+        } catch {
+          // Fall through to fallback method
+        }
+      }
+
+      // Fallback for iOS Safari/PWA and older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = scriptCode;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "0";
+      textArea.setAttribute("readonly", "");
+      document.body.appendChild(textArea);
+
+      try {
+        // iOS-specific selection handling
+        const range = document.createRange();
+        range.selectNodeContents(textArea);
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        textArea.setSelectionRange(0, scriptCode.length);
+
+        const success = document.execCommand("copy");
+        if (!success) {
+          throw new Error("execCommand copy failed");
+        }
+
+        setCopyStatus("copied");
+        window.setTimeout(() => setCopyStatus("idle"), 2500);
+      } finally {
+        document.body.removeChild(textArea);
+      }
     } catch {
       setCopyStatus("error");
       window.setTimeout(() => setCopyStatus("idle"), 3000);
