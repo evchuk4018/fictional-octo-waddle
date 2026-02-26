@@ -6,6 +6,7 @@ export type BigGoal = {
   title: string;
   description: string | null;
   due_date: string | null;
+  order_index: number;
   created_at: string;
 };
 
@@ -24,6 +25,7 @@ export type DailyTask = {
   medium_goal_id: UUID;
   title: string;
   completed: boolean;
+  order_index: number;
 };
 
 export type DailyTaskCheckin = {

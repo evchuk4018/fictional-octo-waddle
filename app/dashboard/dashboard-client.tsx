@@ -98,6 +98,7 @@ export function DashboardClient({ email }: DashboardClientProps) {
             {goalsQuery.data.map((goal) => (
               <BigGoalCard
                 key={goal.id}
+                bigGoalId={goal.id}
                 title={goal.title}
                 description={goal.description}
                 dueDate={goal.due_date}

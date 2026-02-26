@@ -4,11 +4,13 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSupabaseBrowserClient } from "../lib/supabase";
 import { DailyTask } from "../types/db";
+import { GOALS_QUERY_KEY } from "./use-goals";
 
 const TASKS_KEY = ["active-tasks"];
 const CALENDAR_KEY = ["task-calendar"];
 const CACHE_KEY = "goal-tracker.active-tasks";
-const ACTIVE_TASKS_SELECT = "id,medium_goal_id,title,completed,medium_goals!inner(is_completed)";
+const ACTIVE_TASKS_SELECT =
+  "id,medium_goal_id,title,completed,order_index,medium_goals!inner(is_completed,order_index,big_goals!inner(order_index))";
 
 function currentIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -24,19 +26,33 @@ function readCachedTasks() {
   const raw = window.localStorage.getItem(CACHE_KEY);
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as DailyTask[];
+    return (JSON.parse(raw) as Array<DailyTask & { order_index?: number }>).map((task) => ({
+      ...task,
+      order_index: task.order_index ?? 0
+    }));
   } catch {
     return [];
   }
 }
 
-function mapActiveTaskRows(rows: Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed">>): DailyTask[] {
+function mapActiveTaskRows(rows: Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed" | "order_index">>): DailyTask[] {
   return rows.map((task) => ({
     id: task.id,
     medium_goal_id: task.medium_goal_id,
     title: task.title,
-    completed: task.completed
+    completed: task.completed,
+    order_index: task.order_index
   }));
+}
+
+function withReorderedIndexes<T extends { id: string; order_index: number }>(items: T[], orderedIds: string[]) {
+  const indexById = new Map(orderedIds.map((id, index) => [id, index]));
+
+  return items.map((item) => {
+    const nextIndex = indexById.get(item.id);
+    if (nextIndex === undefined) return item;
+    return { ...item, order_index: nextIndex };
+  });
 }
 
 type CalendarDayStatus = {
@@ -67,9 +83,7 @@ export function useActiveTasks() {
       const { data, error } = await supabase
         .from("daily_tasks")
         .select(ACTIVE_TASKS_SELECT)
-        .eq("medium_goals.is_completed", false)
-        .order("completed", { ascending: true })
-        .order("title", { ascending: true });
+        .eq("medium_goals.is_completed", false);
 
       if (error) {
         const cached = readCachedTasks();
@@ -77,10 +91,33 @@ export function useActiveTasks() {
         throw error;
       }
 
-      const tasks = mapActiveTaskRows((data ?? []) as Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed">>);
+      const tasks = ((data ?? []) as Array<
+        Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed" | "order_index"> & {
+          medium_goals: Array<{ order_index: number; big_goals: Array<{ order_index: number }> }>;
+        }
+      >)
+        .sort((a, b) => {
+          const aMediumOrder = a.medium_goals[0]?.order_index ?? Number.MAX_SAFE_INTEGER;
+          const bMediumOrder = b.medium_goals[0]?.order_index ?? Number.MAX_SAFE_INTEGER;
+          const aBigOrder = a.medium_goals[0]?.big_goals?.[0]?.order_index ?? Number.MAX_SAFE_INTEGER;
+          const bBigOrder = b.medium_goals[0]?.big_goals?.[0]?.order_index ?? Number.MAX_SAFE_INTEGER;
 
-      persistTasks(tasks);
-      return tasks;
+          const bigOrderDelta = aBigOrder - bBigOrder;
+          if (bigOrderDelta !== 0) return bigOrderDelta;
+
+          const mediumOrderDelta = aMediumOrder - bMediumOrder;
+          if (mediumOrderDelta !== 0) return mediumOrderDelta;
+
+          const taskOrderDelta = a.order_index - b.order_index;
+          if (taskOrderDelta !== 0) return taskOrderDelta;
+
+          return a.title.localeCompare(b.title);
+        });
+
+      const mappedTasks = mapActiveTaskRows(tasks);
+
+      persistTasks(mappedTasks);
+      return mappedTasks;
     }
   });
 }
@@ -101,7 +138,7 @@ export function useTaskCalendar() {
       if (activeTasksError) throw activeTasksError;
 
       const activeTaskRows = mapActiveTaskRows(
-        (activeTasks ?? []) as Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed">>
+        (activeTasks ?? []) as Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed" | "order_index">>
       );
       const activeTaskIds = activeTaskRows.map((task) => task.id);
       const completedByDate = new Map<string, number>();
@@ -154,10 +191,21 @@ export function useCreateTask() {
 
   return useMutation({
     mutationFn: async (payload: { mediumGoalId: string; title: string }) => {
+      const { data: latestTask, error: latestTaskError } = await supabase
+        .from("daily_tasks")
+        .select("order_index")
+        .eq("medium_goal_id", payload.mediumGoalId)
+        .order("order_index", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestTaskError) throw latestTaskError;
+
       const { error } = await supabase.from("daily_tasks").insert({
         medium_goal_id: payload.mediumGoalId,
         title: payload.title,
-        completed: false
+        completed: false,
+        order_index: (latestTask?.order_index ?? -1) + 1
       });
 
       if (error) throw error;
@@ -221,6 +269,96 @@ export function useDeleteTask() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["goals"] }),
+        queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+        queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
+      ]);
+    }
+  });
+}
+
+export function useReorderTasks() {
+  const queryClient = useQueryClient();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  return useMutation({
+    mutationFn: async (payload: { mediumGoalId: string; orderedTaskIds: string[] }) => {
+      const temporaryResults = await Promise.all(
+        payload.orderedTaskIds.map((taskId, index) =>
+          supabase
+            .from("daily_tasks")
+            .update({ order_index: -(index + 1) })
+            .eq("id", taskId)
+            .eq("medium_goal_id", payload.mediumGoalId)
+        )
+      );
+
+      for (const result of temporaryResults) {
+        if (result.error) throw result.error;
+      }
+
+      const results = await Promise.all(
+        payload.orderedTaskIds.map((taskId, index) =>
+          supabase.from("daily_tasks").update({ order_index: index }).eq("id", taskId).eq("medium_goal_id", payload.mediumGoalId)
+        )
+      );
+
+      for (const result of results) {
+        if (result.error) throw result.error;
+      }
+    },
+    onMutate: async ({ mediumGoalId, orderedTaskIds }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: GOALS_QUERY_KEY }),
+        queryClient.cancelQueries({ queryKey: TASKS_KEY })
+      ]);
+
+      const previousGoals = queryClient.getQueryData(GOALS_QUERY_KEY);
+      const previousActiveTasks = queryClient.getQueryData<DailyTask[]>(TASKS_KEY);
+
+      queryClient.setQueryData(GOALS_QUERY_KEY, (current: any) => {
+        if (!Array.isArray(current)) return current;
+
+        return current.map((goal: any) => ({
+          ...goal,
+          medium_goals: (goal.medium_goals ?? []).map((mediumGoal: any) => {
+            if (mediumGoal.id !== mediumGoalId) return mediumGoal;
+
+            const reorderedTasks = withReorderedIndexes(mediumGoal.daily_tasks ?? [], orderedTaskIds).sort(
+              (a, b) => a.order_index - b.order_index
+            );
+
+            return {
+              ...mediumGoal,
+              daily_tasks: reorderedTasks
+            };
+          })
+        }));
+      });
+
+      queryClient.setQueryData<DailyTask[]>(TASKS_KEY, (current) => {
+        if (!current) return current;
+        const scoped = current.filter((task) => task.medium_goal_id === mediumGoalId);
+        if (scoped.length === 0) return current;
+
+        const reorderedScoped = withReorderedIndexes(scoped, orderedTaskIds).sort((a, b) => a.order_index - b.order_index);
+        const scopedMap = new Map(reorderedScoped.map((task) => [task.id, task]));
+
+        return current.map((task) => scopedMap.get(task.id) ?? task);
+      });
+
+      return { previousGoals, previousActiveTasks };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousGoals) {
+        queryClient.setQueryData(GOALS_QUERY_KEY, context.previousGoals);
+      }
+      if (context?.previousActiveTasks) {
+        queryClient.setQueryData(TASKS_KEY, context.previousActiveTasks);
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: GOALS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
         queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
       ]);

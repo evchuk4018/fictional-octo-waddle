@@ -49,7 +49,10 @@ Production-ready mobile-first goal-tracking app built with Next.js 14 + Supabase
 
 4. Run Supabase SQL migrations:
 
-	- Execute `supabase/migrations/001_initial_schema.sql` first, then `supabase/migrations/002_goal_due_dates_and_daily_checkins.sql`.
+	- Execute in order:
+	  - `supabase/migrations/001_initial_schema.sql`
+	  - `supabase/migrations/002_goal_due_dates_and_daily_checkins.sql`
+	  - `supabase/migrations/003_goal_and_task_ordering.sql`
 
 5. Start app:
 

@@ -1,18 +1,36 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { Reorder } from "framer-motion";
 import { BigGoalCard } from "../../components/goals/big-goal-card";
 import { CreateBigGoalForm } from "../../components/goals/create-big-goal-form";
 import { CreateMediumGoalForm } from "../../components/goals/create-medium-goal-form";
 import { CreateTaskForm } from "../../components/tasks/create-task-form";
 import { Card } from "../../components/ui/card";
-import { useGoalTree, useSetMediumGoalCompletion } from "../../hooks/use-goals";
-import { useDeleteTask, useToggleTask } from "../../hooks/use-tasks";
+import { useGoalTree, useReorderBigGoals, useReorderMediumGoals, useSetMediumGoalCompletion } from "../../hooks/use-goals";
+import { useDeleteTask, useReorderTasks, useToggleTask } from "../../hooks/use-tasks";
 
 export default function GoalsPage() {
   const goalsQuery = useGoalTree();
   const setMediumCompletion = useSetMediumGoalCompletion();
+  const reorderBigGoals = useReorderBigGoals();
+  const reorderMediumGoals = useReorderMediumGoals();
+  const reorderTasks = useReorderTasks();
   const toggleTask = useToggleTask();
   const deleteTask = useDeleteTask();
+  const [orderedGoals, setOrderedGoals] = useState(goalsQuery.data ?? []);
+
+  useEffect(() => {
+    setOrderedGoals(goalsQuery.data ?? []);
+  }, [goalsQuery.data]);
+
+  const initialOrderSignature = useMemo(() => (goalsQuery.data ?? []).map((goal) => goal.id).join("|"), [goalsQuery.data]);
+  const orderedSignature = useMemo(() => orderedGoals.map((goal) => goal.id).join("|"), [orderedGoals]);
+
+  const persistBigGoalOrder = () => {
+    if (orderedSignature === initialOrderSignature) return;
+    reorderBigGoals.mutate({ orderedGoalIds: orderedGoals.map((goal) => goal.id) });
+  };
 
   const options = (goalsQuery.data ?? []).map((goal) => ({
     id: goal.id,
@@ -52,25 +70,32 @@ export default function GoalsPage() {
           <Card>
             <p className="text-sm text-red-700">Unable to load goals.</p>
           </Card>
-        ) : goalsQuery.data && goalsQuery.data.length > 0 ? (
-          <div className="space-y-3">
-            {goalsQuery.data.map((goal) => (
-              <BigGoalCard
-                key={goal.id}
-                title={goal.title}
-                description={goal.description}
-                dueDate={goal.due_date}
-                completionPercent={goal.completionPercent}
-                mediumGoals={goal.medium_goals}
-                onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
-                  setMediumCompletion.mutate({ mediumGoalId, isCompleted })
-                }
-                showTasks
-                onToggleTask={(taskId, completed) => toggleTask.mutate({ taskId, completed })}
-                onDeleteTask={(taskId) => deleteTask.mutate({ taskId })}
-              />
+        ) : orderedGoals.length > 0 ? (
+          <Reorder.Group axis="y" values={orderedGoals} onReorder={setOrderedGoals} className="space-y-3">
+            {orderedGoals.map((goal) => (
+              <Reorder.Item key={goal.id} value={goal} className="list-none" onDragEnd={persistBigGoalOrder}>
+                <BigGoalCard
+                  bigGoalId={goal.id}
+                  title={goal.title}
+                  description={goal.description}
+                  dueDate={goal.due_date}
+                  completionPercent={goal.completionPercent}
+                  mediumGoals={goal.medium_goals}
+                  onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
+                    setMediumCompletion.mutate({ mediumGoalId, isCompleted })
+                  }
+                  showTasks
+                  enableReorder
+                  onToggleTask={(taskId, completed) => toggleTask.mutate({ taskId, completed })}
+                  onDeleteTask={(taskId) => deleteTask.mutate({ taskId })}
+                  onReorderMediumGoals={(bigGoalId, orderedMediumGoalIds) =>
+                    reorderMediumGoals.mutate({ bigGoalId, orderedMediumGoalIds })
+                  }
+                  onReorderTasks={(mediumGoalId, orderedTaskIds) => reorderTasks.mutate({ mediumGoalId, orderedTaskIds })}
+                />
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
         ) : (
           <Card>
             <p className="text-sm text-text-secondary">No goals yet. Start with your first big goal above.</p>
