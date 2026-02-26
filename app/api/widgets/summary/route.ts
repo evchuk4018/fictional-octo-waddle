@@ -1,23 +1,50 @@
-import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "../../../../lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseServerClient, createSupabaseServiceRoleClient } from "../../../../lib/auth";
 import { toPercent } from "../../../../lib/utils";
 
-export async function GET() {
-  const supabase = createSupabaseServerClient();
+export async function GET(request: NextRequest) {
+  const token = request.nextUrl.searchParams.get("token");
 
-  const {
-    data: { user },
-    error: userError
-  } = await supabase.auth.getUser();
+  let userId: string;
 
-  if (userError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (token) {
+    const serviceClient = createSupabaseServiceRoleClient();
+    const { data, error } = await serviceClient
+      .from("widget_tokens")
+      .select("user_id")
+      .eq("token", token)
+      .maybeSingle();
+
+    if (error || !data) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    userId = data.user_id;
+  } else {
+    const supabase = createSupabaseServerClient();
+
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    userId = user.id;
   }
 
-  const { data: tasks, error: tasksError } = await supabase
+  const serviceClient = createSupabaseServiceRoleClient();
+
+  const { data: tasks, error: tasksError } = await serviceClient
     .from("daily_tasks")
-    .select("id,title,completed,medium_goals!inner(is_completed)")
+    .select(
+      // daily_tasks → medium_goals → big_goals, filtering to the authenticated user's tasks
+      "id,title,completed,medium_goals!inner(is_completed,big_goals!inner(user_id))"
+    )
     .eq("medium_goals.is_completed", false)
+    .eq("medium_goals.big_goals.user_id", userId)
     .order("completed", { ascending: true })
     .limit(20);
 
