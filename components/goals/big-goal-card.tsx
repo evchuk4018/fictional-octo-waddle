@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Reorder } from "framer-motion";
 import { Card } from "../ui/card";
 import { CircularProgress } from "../ui/circular-progress";
@@ -79,7 +79,7 @@ export function BigGoalCard({
     onReorderMediumGoals(bigGoalId, orderedMediumGoals.map((goal) => goal.id));
   };
 
-  const setTaskInteraction = (mediumGoalId: string, isActive: boolean) => {
+  const setTaskInteraction = useCallback((mediumGoalId: string, isActive: boolean) => {
     setActiveTaskInteractionIds((current) => {
       if (isActive) {
         if (current.includes(mediumGoalId)) return current;
@@ -87,7 +87,7 @@ export function BigGoalCard({
       }
       return current.filter((id) => id !== mediumGoalId);
     });
-  };
+  }, []);
 
   const isTaskGestureActive = activeTaskInteractionIds.length > 0;
   const canReorderMediumGoals = enableReorder && orderedMediumGoals.length > 1 && !isTaskGestureActive;

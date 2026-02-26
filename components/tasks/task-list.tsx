@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Reorder } from "framer-motion";
 import { DailyTask } from "../../types/db";
 import { TaskItem } from "./task-item";
@@ -36,9 +36,12 @@ export function TaskList({
 
   const orderedSignature = useMemo(() => orderedTasks.map((task) => task.id).join("|"), [orderedTasks]);
 
+  const onInteractionChangeRef = useRef(onInteractionChange);
+  onInteractionChangeRef.current = onInteractionChange;
+
   useEffect(() => {
-    onInteractionChange?.(isReordering || isSwiping);
-  }, [isReordering, isSwiping, onInteractionChange]);
+    onInteractionChangeRef.current?.(isReordering || isSwiping);
+  }, [isReordering, isSwiping]);
 
   const persistOrder = () => {
     if (!onReorderTasks) return;
