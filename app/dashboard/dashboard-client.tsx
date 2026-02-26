@@ -26,6 +26,7 @@ export function DashboardClient() {
   const [showWidgetInstructions, setShowWidgetInstructions] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+  const [manualCopyCode, setManualCopyCode] = useState("");
 
   const activeTasks = activeTasksQuery.data ?? [];
   const completedCount = activeTasks.filter((task) => task.completed).length;
@@ -33,6 +34,7 @@ export function DashboardClient() {
   const nextTask = activeTasks.find((task) => !task.completed);
 
   const handleCopyWidgetCode = async () => {
+    // Keep script code available for manual fallback when clipboard APIs fail on iOS.
     let scriptCode = "";
 
     try {
@@ -47,6 +49,7 @@ export function DashboardClient() {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
           await navigator.clipboard.writeText(scriptCode);
+          setManualCopyCode("");
           setCopyStatus("copied");
           window.setTimeout(() => setCopyStatus("idle"), 2500);
           return;
@@ -63,6 +66,7 @@ export function DashboardClient() {
       textArea.style.top = "0";
       textArea.style.opacity = "0";
       textArea.setAttribute("readonly", "");
+      textArea.setAttribute("aria-hidden", "true");
       document.body.appendChild(textArea);
 
       try {
@@ -84,6 +88,7 @@ export function DashboardClient() {
           throw new Error("execCommand copy failed");
         }
 
+        setManualCopyCode("");
         setCopyStatus("copied");
         window.setTimeout(() => setCopyStatus("idle"), 2500);
       } finally {
@@ -91,7 +96,7 @@ export function DashboardClient() {
       }
     } catch {
       if (scriptCode) {
-        window.prompt("Copy the Scriptable script manually:", scriptCode);
+        setManualCopyCode(scriptCode);
         setCopyStatus("manual");
         window.setTimeout(() => setCopyStatus("idle"), 4000);
       } else {
@@ -107,7 +112,20 @@ export function DashboardClient() {
 
   const token = widgetTokenQuery.data?.token;
   const maskedToken = token ? `${token.slice(0, 4)}${"•".repeat(token.length - 4)}` : "";
-  const tokenText = widgetTokenQuery.isLoading ? "Loading…" : token ? (showToken ? token : maskedToken) : "Token unavailable";
+  let tokenText = "Token unavailable";
+  if (widgetTokenQuery.isLoading) {
+    tokenText = "Loading…";
+  } else if (token) {
+    tokenText = showToken ? token : maskedToken;
+  }
+  let copyStatusText = "";
+  if (copyStatus === "copied") {
+    copyStatusText = "Copied!";
+  } else if (copyStatus === "manual") {
+    copyStatusText = "Auto-copy unavailable. Use manual copy field below.";
+  } else if (copyStatus === "error") {
+    copyStatusText = "Could not copy. Try again.";
+  }
 
   return (
     <div className="space-y-section">
@@ -158,15 +176,22 @@ export function DashboardClient() {
               {revokeToken.isPending ? "Regenerating…" : "Regenerate token"}
             </Button>
             <p className="text-sm text-text-secondary" role="status" aria-live="polite">
-              {copyStatus === "copied"
-                ? "Copied!"
-                : copyStatus === "manual"
-                  ? "Auto-copy unavailable. Manual copy opened."
-                : copyStatus === "error"
-                  ? "Could not copy. Try again."
-                  : ""}
+              {copyStatusText}
             </p>
           </div>
+          {manualCopyCode ? (
+            <div className="space-y-2">
+              <p className="text-sm text-text-secondary">
+                Manual copy fallback: select all text in this field, then copy it to your clipboard.
+              </p>
+              <textarea
+                readOnly
+                value={manualCopyCode}
+                rows={8}
+                className="w-full rounded border border-accent bg-white p-2 text-xs text-text-primary"
+              />
+            </div>
+          ) : null}
 
           <ol className="list-decimal space-y-2 pl-5 text-sm text-text-secondary">
             <li>
