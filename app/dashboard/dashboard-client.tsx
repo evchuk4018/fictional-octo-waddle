@@ -12,7 +12,7 @@ import { useActiveTasks, useTaskCalendar, useToggleTask } from "../../hooks/use-
 import { useWidgetToken, useRevokeWidgetToken } from "../../hooks/use-widget-token";
 import { toPercent } from "../../lib/utils";
 
-type CopyStatus = "idle" | "copied" | "error";
+type CopyStatus = "idle" | "copied" | "manual" | "error";
 
 export function DashboardClient() {
   const { signOut } = useAuth();
@@ -33,13 +33,15 @@ export function DashboardClient() {
   const nextTask = activeTasks.find((task) => !task.completed);
 
   const handleCopyWidgetCode = async () => {
+    let scriptCode = "";
+
     try {
       const response = await fetch("/api/widgets/script", { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Unable to load widget script");
       }
 
-      const scriptCode = await response.text();
+      scriptCode = await response.text();
 
       // Try the modern Clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -56,13 +58,17 @@ export function DashboardClient() {
       // Fallback for iOS Safari/PWA and older browsers
       const textArea = document.createElement("textarea");
       textArea.value = scriptCode;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-9999px";
+      textArea.style.position = "absolute";
+      textArea.style.left = "0";
       textArea.style.top = "0";
+      textArea.style.opacity = "0";
       textArea.setAttribute("readonly", "");
       document.body.appendChild(textArea);
 
       try {
+        textArea.focus();
+        textArea.select();
+
         // iOS-specific selection handling
         const range = document.createRange();
         range.selectNodeContents(textArea);
@@ -84,8 +90,14 @@ export function DashboardClient() {
         document.body.removeChild(textArea);
       }
     } catch {
-      setCopyStatus("error");
-      window.setTimeout(() => setCopyStatus("idle"), 3000);
+      if (scriptCode) {
+        window.prompt("Copy the Scriptable script manually:", scriptCode);
+        setCopyStatus("manual");
+        window.setTimeout(() => setCopyStatus("idle"), 4000);
+      } else {
+        setCopyStatus("error");
+        window.setTimeout(() => setCopyStatus("idle"), 3000);
+      }
     }
   };
 
@@ -95,6 +107,7 @@ export function DashboardClient() {
 
   const token = widgetTokenQuery.data?.token;
   const maskedToken = token ? `${token.slice(0, 4)}${"•".repeat(token.length - 4)}` : "";
+  const tokenText = widgetTokenQuery.isLoading ? "Loading…" : token ? (showToken ? token : maskedToken) : "Token unavailable";
 
   return (
     <div className="space-y-section">
@@ -119,13 +132,13 @@ export function DashboardClient() {
             <p className="text-sm font-semibold">Your widget token</p>
             <div className="flex flex-wrap items-center gap-2">
               <code className="rounded bg-[#E6F0EE] px-2 py-1 text-xs text-text-primary">
-                {widgetTokenQuery.isLoading ? "Loading…" : showToken ? token : maskedToken}
+                {tokenText}
               </code>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => setShowToken((v) => !v)}
-                disabled={widgetTokenQuery.isLoading}
+                disabled={widgetTokenQuery.isLoading || !token}
               >
                 {showToken ? "Hide" : "Show"}
               </Button>
@@ -147,6 +160,8 @@ export function DashboardClient() {
             <p className="text-sm text-text-secondary" role="status" aria-live="polite">
               {copyStatus === "copied"
                 ? "Copied!"
+                : copyStatus === "manual"
+                  ? "Auto-copy unavailable. Manual copy opened."
                 : copyStatus === "error"
                   ? "Could not copy. Try again."
                   : ""}
@@ -266,4 +281,3 @@ export function DashboardClient() {
     </div>
   );
 }
-
