@@ -5,26 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSupabaseBrowserClient } from "../lib/supabase";
 import { toPercent } from "../lib/utils";
 import { GoalTree } from "../types/db";
+import { GOALS_QUERY_KEY } from "./query-keys";
+import { runTwoPhaseOrderUpdate, withReorderedIndexes } from "./reorder-utils";
 
-type GoalStats = GoalTree & {
+export type GoalStats = GoalTree & {
   completionPercent: number;
   medium_goals: Array<GoalTree["medium_goals"][number] & { completionPercent: number }>;
 };
-
-export const GOALS_QUERY_KEY = ["goals"];
-
-function withReorderedIndexes<T extends { id: string; order_index: number }>(
-  items: T[],
-  orderedIds: string[]
-): T[] {
-  const indexById = new Map(orderedIds.map((id, index) => [id, index]));
-
-  return items.map((item) => {
-    const nextIndex = indexById.get(item.id);
-    if (nextIndex === undefined) return item;
-    return { ...item, order_index: nextIndex };
-  });
-}
 
 function applyGoalTreeBigGoalOrder(goals: GoalStats[], orderedGoalIds: string[]) {
   const withIndexes = withReorderedIndexes(goals, orderedGoalIds);
@@ -140,7 +127,7 @@ export function useCreateMediumGoal() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   return useMutation({
-    mutationFn: async (payload: { bigGoalId: string; title: string; orderIndex: number; dueDate: string }) => {
+    mutationFn: async (payload: { bigGoalId: string; title: string; dueDate: string }) => {
       const { data: latestMediumGoal, error: latestMediumGoalError } = await supabase
         .from("medium_goals")
         .select("order_index")
@@ -198,25 +185,9 @@ export function useReorderBigGoals() {
 
   return useMutation({
     mutationFn: async (payload: { orderedGoalIds: string[] }) => {
-      const temporaryResults = await Promise.all(
-        payload.orderedGoalIds.map((goalId, index) =>
-          supabase.from("big_goals").update({ order_index: -(index + 1) }).eq("id", goalId)
-        )
+      await runTwoPhaseOrderUpdate(payload.orderedGoalIds, (goalId, index) =>
+        supabase.from("big_goals").update({ order_index: index }).eq("id", goalId)
       );
-
-      for (const result of temporaryResults) {
-        if (result.error) throw result.error;
-      }
-
-      const results = await Promise.all(
-        payload.orderedGoalIds.map((goalId, index) =>
-          supabase.from("big_goals").update({ order_index: index }).eq("id", goalId)
-        )
-      );
-
-      for (const result of results) {
-        if (result.error) throw result.error;
-      }
     },
     onMutate: async ({ orderedGoalIds }) => {
       await queryClient.cancelQueries({ queryKey: GOALS_QUERY_KEY });
@@ -249,25 +220,9 @@ export function useReorderMediumGoals() {
 
   return useMutation({
     mutationFn: async (payload: { bigGoalId: string; orderedMediumGoalIds: string[] }) => {
-      const temporaryResults = await Promise.all(
-        payload.orderedMediumGoalIds.map((mediumGoalId, index) =>
-          supabase.from("medium_goals").update({ order_index: -(index + 1) }).eq("id", mediumGoalId)
-        )
+      await runTwoPhaseOrderUpdate(payload.orderedMediumGoalIds, (mediumGoalId, index) =>
+        supabase.from("medium_goals").update({ order_index: index }).eq("id", mediumGoalId)
       );
-
-      for (const result of temporaryResults) {
-        if (result.error) throw result.error;
-      }
-
-      const results = await Promise.all(
-        payload.orderedMediumGoalIds.map((mediumGoalId, index) =>
-          supabase.from("medium_goals").update({ order_index: index }).eq("id", mediumGoalId)
-        )
-      );
-
-      for (const result of results) {
-        if (result.error) throw result.error;
-      }
     },
     onMutate: async ({ bigGoalId, orderedMediumGoalIds }) => {
       await queryClient.cancelQueries({ queryKey: GOALS_QUERY_KEY });

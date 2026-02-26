@@ -4,35 +4,16 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSupabaseBrowserClient } from "../lib/supabase";
 import { DailyTask } from "../types/db";
-import { GOALS_QUERY_KEY } from "./use-goals";
+import { readCachedTasks, persistCachedTasks } from "./task-cache";
+import { GOALS_QUERY_KEY, TASKS_QUERY_KEY, TASK_CALENDAR_QUERY_KEY } from "./query-keys";
+import { runTwoPhaseOrderUpdate, withReorderedIndexes } from "./reorder-utils";
+import type { GoalStats } from "./use-goals";
 
-const TASKS_KEY = ["active-tasks"];
-const CALENDAR_KEY = ["task-calendar"];
-const CACHE_KEY = "goal-tracker.active-tasks";
 const ACTIVE_TASKS_SELECT =
   "id,medium_goal_id,title,completed,order_index,medium_goals!inner(is_completed,order_index,big_goals!inner(order_index))";
 
 function currentIsoDate() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function persistTasks(tasks: DailyTask[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(CACHE_KEY, JSON.stringify(tasks));
-}
-
-function readCachedTasks() {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(CACHE_KEY);
-  if (!raw) return [];
-  try {
-    return (JSON.parse(raw) as Array<DailyTask & { order_index?: number }>).map((task) => ({
-      ...task,
-      order_index: task.order_index ?? 0
-    }));
-  } catch {
-    return [];
-  }
 }
 
 function mapActiveTaskRows(rows: Array<Pick<DailyTask, "id" | "medium_goal_id" | "title" | "completed" | "order_index">>): DailyTask[] {
@@ -43,16 +24,6 @@ function mapActiveTaskRows(rows: Array<Pick<DailyTask, "id" | "medium_goal_id" |
     completed: task.completed,
     order_index: task.order_index
   }));
-}
-
-function withReorderedIndexes<T extends { id: string; order_index: number }>(items: T[], orderedIds: string[]) {
-  const indexById = new Map(orderedIds.map((id, index) => [id, index]));
-
-  return items.map((item) => {
-    const nextIndex = indexById.get(item.id);
-    if (nextIndex === undefined) return item;
-    return { ...item, order_index: nextIndex };
-  });
 }
 
 type CalendarDayStatus = {
@@ -78,7 +49,7 @@ export function useActiveTasks() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   return useQuery({
-    queryKey: TASKS_KEY,
+    queryKey: TASKS_QUERY_KEY,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_tasks")
@@ -116,7 +87,7 @@ export function useActiveTasks() {
 
       const mappedTasks = mapActiveTaskRows(tasks);
 
-      persistTasks(mappedTasks);
+      persistCachedTasks(mappedTasks);
       return mappedTasks;
     }
   });
@@ -126,7 +97,7 @@ export function useTaskCalendar() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   return useQuery({
-    queryKey: CALENDAR_KEY,
+    queryKey: TASK_CALENDAR_QUERY_KEY,
     queryFn: async () => {
       const { startDate, endDate, totalDays } = monthDateRange();
 
@@ -212,9 +183,9 @@ export function useCreateTask() {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["goals"] }),
-        queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
-        queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
+        queryClient.invalidateQueries({ queryKey: GOALS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: TASK_CALENDAR_QUERY_KEY })
       ]);
     }
   });
@@ -248,9 +219,9 @@ export function useToggleTask() {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["goals"] }),
-        queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
-        queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
+        queryClient.invalidateQueries({ queryKey: GOALS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: TASK_CALENDAR_QUERY_KEY })
       ]);
     }
   });
@@ -268,9 +239,9 @@ export function useDeleteTask() {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["goals"] }),
-        queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
-        queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
+        queryClient.invalidateQueries({ queryKey: GOALS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: TASK_CALENDAR_QUERY_KEY })
       ]);
     }
   });
@@ -282,45 +253,25 @@ export function useReorderTasks() {
 
   return useMutation({
     mutationFn: async (payload: { mediumGoalId: string; orderedTaskIds: string[] }) => {
-      const temporaryResults = await Promise.all(
-        payload.orderedTaskIds.map((taskId, index) =>
-          supabase
-            .from("daily_tasks")
-            .update({ order_index: -(index + 1) })
-            .eq("id", taskId)
-            .eq("medium_goal_id", payload.mediumGoalId)
-        )
+      await runTwoPhaseOrderUpdate(payload.orderedTaskIds, (taskId, index) =>
+        supabase.from("daily_tasks").update({ order_index: index }).eq("id", taskId).eq("medium_goal_id", payload.mediumGoalId)
       );
-
-      for (const result of temporaryResults) {
-        if (result.error) throw result.error;
-      }
-
-      const results = await Promise.all(
-        payload.orderedTaskIds.map((taskId, index) =>
-          supabase.from("daily_tasks").update({ order_index: index }).eq("id", taskId).eq("medium_goal_id", payload.mediumGoalId)
-        )
-      );
-
-      for (const result of results) {
-        if (result.error) throw result.error;
-      }
     },
     onMutate: async ({ mediumGoalId, orderedTaskIds }) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: GOALS_QUERY_KEY }),
-        queryClient.cancelQueries({ queryKey: TASKS_KEY })
+        queryClient.cancelQueries({ queryKey: TASKS_QUERY_KEY })
       ]);
 
-      const previousGoals = queryClient.getQueryData(GOALS_QUERY_KEY);
-      const previousActiveTasks = queryClient.getQueryData<DailyTask[]>(TASKS_KEY);
+      const previousGoals = queryClient.getQueryData<GoalStats[]>(GOALS_QUERY_KEY);
+      const previousActiveTasks = queryClient.getQueryData<DailyTask[]>(TASKS_QUERY_KEY);
 
-      queryClient.setQueryData(GOALS_QUERY_KEY, (current: any) => {
-        if (!Array.isArray(current)) return current;
+      queryClient.setQueryData<GoalStats[]>(GOALS_QUERY_KEY, (current) => {
+        if (!current) return current;
 
-        return current.map((goal: any) => ({
+        return current.map((goal: GoalStats) => ({
           ...goal,
-          medium_goals: (goal.medium_goals ?? []).map((mediumGoal: any) => {
+          medium_goals: goal.medium_goals.map((mediumGoal: GoalStats["medium_goals"][number]) => {
             if (mediumGoal.id !== mediumGoalId) return mediumGoal;
 
             const reorderedTasks = withReorderedIndexes(mediumGoal.daily_tasks ?? [], orderedTaskIds).sort(
@@ -335,7 +286,7 @@ export function useReorderTasks() {
         }));
       });
 
-      queryClient.setQueryData<DailyTask[]>(TASKS_KEY, (current) => {
+      queryClient.setQueryData<DailyTask[]>(TASKS_QUERY_KEY, (current) => {
         if (!current) return current;
         const scoped = current.filter((task) => task.medium_goal_id === mediumGoalId);
         if (scoped.length === 0) return current;
@@ -353,14 +304,14 @@ export function useReorderTasks() {
         queryClient.setQueryData(GOALS_QUERY_KEY, context.previousGoals);
       }
       if (context?.previousActiveTasks) {
-        queryClient.setQueryData(TASKS_KEY, context.previousActiveTasks);
+        queryClient.setQueryData(TASKS_QUERY_KEY, context.previousActiveTasks);
       }
     },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: GOALS_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
-        queryClient.invalidateQueries({ queryKey: CALENDAR_KEY })
+        queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: TASK_CALENDAR_QUERY_KEY })
       ]);
     }
   });

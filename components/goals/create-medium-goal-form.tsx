@@ -42,11 +42,9 @@ export function CreateMediumGoalForm({ options }: CreateMediumGoalFormProps) {
       <form
         className="space-y-3"
         onSubmit={handleSubmit(async (values) => {
-          const selected = options.find((option) => option.id === values.bigGoalId);
           await createMediumGoal.mutateAsync({
             bigGoalId: values.bigGoalId,
             title: values.title,
-            orderIndex: selected?.mediumCount ?? 0,
             dueDate: values.dueDate
           });
           reset();
