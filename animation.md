@@ -1,0 +1,21 @@
+# Animation Opportunities
+
+- Bottom nav: active tab indicator slide + icon pop on tap
+- Dashboard: staggered reveal for KPI cards and goal summaries
+- Goals list: reorder feedback (lift, shadow, slight scale), drop snap animation
+- Task list: swipe-to-complete with spring + fade-out on complete
+- Task creation: modal/inline form expand with height + opacity
+- Progress bars: animate fill on load and when updated
+- Circular progress: smooth tween to new value
+- Empty states: subtle float or pulse to draw attention
+- Page transitions: cross-fade between dashboard/goals with route change
+- Login: input focus highlight and button press ripple
+- Error states: shake animation on failed form submission
+- Milestone celebration: confetti burst and goal card highlight on completion
+- Hover states: subtle lift and shadow on interactive elements for desktop users
+- Loading states: skeleton shimmer for goal/task lists while fetching data
+- Drag-and-drop: lifted item follows cursor with shadow, drop target highlights, and items animate to new positions on reorder
+- Responsive layout changes: animate between column and row layouts on breakpoint changes for smoother transitions
+- Accessibility: ensure all animations respect reduced motion preferences and provide non-animated alternatives where necessary.
+- Performance: prioritize lightweight animations that enhance UX without causing jank, especially on mobile devices.
+- Consistency: maintain a cohesive animation style across the app to reinforce brand identity and improve user familiarity.

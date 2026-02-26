@@ -5,6 +5,7 @@ import { GripVertical, Trash2 } from "lucide-react";
 import { AnimatePresence, Reorder, animate, motion, useDragControls, useMotionValue } from "framer-motion";
 import { DailyTask } from "../../types/db";
 import { cn } from "../../lib/utils";
+import { reorderLayoutTransition, reorderLiftTransition } from "../../lib/motion";
 
 type TaskItemProps = {
   task: DailyTask;
@@ -16,6 +17,10 @@ type TaskItemProps = {
   onSwipeEnd?: () => void;
   onReorderStart?: () => void;
   onReorderEnd?: () => void;
+  onReorderMove?: (offsetY: number) => void;
+  isDragging?: boolean;
+  isDropTarget?: boolean;
+  reducedMotion?: boolean;
 };
 
 const SWIPE_DELETE_THRESHOLD = -80;
@@ -38,7 +43,11 @@ export function TaskItem({
   onSwipeStart,
   onSwipeEnd,
   onReorderStart,
-  onReorderEnd
+  onReorderEnd,
+  onReorderMove,
+  isDragging = false,
+  isDropTarget = false,
+  reducedMotion = false
 }: TaskItemProps) {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwipeIntentActive, setIsSwipeIntentActive] = useState(false);
@@ -63,7 +72,12 @@ export function TaskItem({
 
   const itemContent = (
     <motion.label
-      className={cn("relative flex items-center gap-3 overflow-hidden rounded-button border px-4 py-3 transition-colors", swipeToneClass)}
+      className={cn(
+        "relative flex items-center gap-3 overflow-hidden rounded-button border px-4 py-3 transition-colors",
+        swipeToneClass,
+        isDragging ? "shadow-lg" : "shadow-none",
+        isDropTarget ? "ring-2 ring-accent bg-background/70" : ""
+      )}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       style={{ x }}
@@ -72,7 +86,7 @@ export function TaskItem({
       dragPropagation={false}
       dragConstraints={{ left: -120, right: 0 }}
       dragElastic={0.1}
-      whileDrag={{ scale: 0.99 }}
+      whileDrag={reducedMotion ? undefined : { scale: 0.99 }}
       onDrag={(_, info) => {
         if (disableSwipe) return;
         setSwipeOffset(info.offset.x);
@@ -153,13 +167,16 @@ export function TaskItem({
     <Reorder.Item
       value={task}
       layout
+      transition={reorderLayoutTransition(reducedMotion)}
       dragListener={false}
       dragControls={dragControls}
       onDragStart={() => onReorderStart?.()}
       onDragEnd={() => onReorderEnd?.()}
+      onDrag={(_, info) => onReorderMove?.(info.offset.y)}
       className="list-none"
+      whileDrag={reducedMotion ? undefined : { scale: 1.01 }}
     >
-      {itemContent}
+      <motion.div transition={reorderLiftTransition(reducedMotion)}>{itemContent}</motion.div>
     </Reorder.Item>
   );
 }

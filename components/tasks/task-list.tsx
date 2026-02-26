@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Reorder } from "framer-motion";
+import { Reorder, useReducedMotion } from "framer-motion";
 import { DailyTask } from "../../types/db";
 import { TaskItem } from "./task-item";
 
@@ -27,6 +27,9 @@ export function TaskList({
   const [orderedTasks, setOrderedTasks] = useState(tasks);
   const [isReordering, setIsReordering] = useState(false);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [activeDragTaskId, setActiveDragTaskId] = useState<string | null>(null);
+  const [dropTargetTaskId, setDropTargetTaskId] = useState<string | null>(null);
+  const reducedMotion = Boolean(useReducedMotion());
 
   useEffect(() => {
     setOrderedTasks(tasks);
@@ -49,6 +52,22 @@ export function TaskList({
     onReorderTasks(orderedTasks.map((task) => task.id));
   };
 
+  const getDropTargetId = useCallback(
+    (draggedId: string, offsetY: number) => {
+      const direction = offsetY > 0 ? "down" : offsetY < 0 ? "up" : null;
+      if (!direction) return null;
+
+      const draggedIndex = orderedTasks.findIndex((task) => task.id === draggedId);
+      if (draggedIndex === -1) return null;
+
+      const targetIndex = direction === "down" ? draggedIndex + 1 : draggedIndex - 1;
+      if (targetIndex < 0 || targetIndex >= orderedTasks.length) return null;
+
+      return orderedTasks[targetIndex]?.id ?? null;
+    },
+    [orderedTasks]
+  );
+
   if (tasks.length === 0) {
     return (
       <div className="rounded-card bg-card p-card text-sm text-text-secondary" role="status">
@@ -70,11 +89,24 @@ export function TaskList({
             disableSwipe={isReordering || disableInteractions}
             onSwipeStart={() => setIsSwiping(true)}
             onSwipeEnd={() => setIsSwiping(false)}
-            onReorderStart={() => setIsReordering(true)}
+            onReorderStart={() => {
+              setIsReordering(true);
+              setActiveDragTaskId(task.id);
+              setDropTargetTaskId(null);
+            }}
+            onReorderMove={(offsetY) => {
+              const targetId = getDropTargetId(task.id, offsetY);
+              setDropTargetTaskId(targetId);
+            }}
             onReorderEnd={() => {
               setIsReordering(false);
+              setActiveDragTaskId(null);
+              setDropTargetTaskId(null);
               persistOrder();
             }}
+            isDragging={activeDragTaskId === task.id}
+            isDropTarget={dropTargetTaskId === task.id}
+            reducedMotion={reducedMotion}
           />
         ))}
       </Reorder.Group>
@@ -92,6 +124,7 @@ export function TaskList({
           disableSwipe={disableInteractions}
           onSwipeStart={() => setIsSwiping(true)}
           onSwipeEnd={() => setIsSwiping(false)}
+          reducedMotion={reducedMotion}
         />
       ))}
     </div>

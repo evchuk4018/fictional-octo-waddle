@@ -1,7 +1,8 @@
 "use client";
 
 import * as Progress from "@radix-ui/react-progress";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { progressFillTransition } from "../../lib/motion";
 
 type ProgressBarProps = {
   value: number;
@@ -10,6 +11,7 @@ type ProgressBarProps = {
 
 export function ProgressBar({ value, label }: ProgressBarProps) {
   const boundedValue = Math.max(0, Math.min(100, value));
+  const reducedMotion = Boolean(useReducedMotion());
 
   return (
     <div className="space-y-2" aria-label={`${label} completion`}>
@@ -21,9 +23,9 @@ export function ProgressBar({ value, label }: ProgressBarProps) {
         <Progress.Indicator asChild>
           <motion.div
             className="h-full bg-progress-filled"
-            initial={{ width: 0 }}
+            initial={{ width: reducedMotion ? `${boundedValue}%` : 0 }}
             animate={{ width: `${boundedValue}%` }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
+            transition={progressFillTransition(reducedMotion)}
           />
         </Progress.Indicator>
       </Progress.Root>

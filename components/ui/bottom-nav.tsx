@@ -4,7 +4,9 @@ import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { Home, Target } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "../../lib/utils";
+import { iconPopTransition, navIndicatorTransition } from "../../lib/motion";
 
 const links: Array<{ href: Route; label: string; icon: typeof Home }> = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -13,12 +15,7 @@ const links: Array<{ href: Route; label: string; icon: typeof Home }> = [
 
 export function BottomNav() {
   const pathname = usePathname();
-
-  console.log("[BottomNav] render, pathname:", pathname);
-
-  const handleLinkClick = (href: string, label: string) => {
-    console.log("[BottomNav] clicked:", label, "href:", href, "current pathname:", pathname);
-  };
+  const reducedMotion = Boolean(useReducedMotion());
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-accent bg-card/95 backdrop-blur" aria-label="Primary navigation">
@@ -26,17 +23,30 @@ export function BottomNav() {
         {links.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
-            <li key={href}>
+            <li key={href} className="relative">
+              {active ? (
+                <motion.span
+                  layoutId="bottom-nav-active-indicator"
+                  className="absolute inset-x-2 -bottom-0.5 h-1 rounded-pill bg-primary"
+                  transition={navIndicatorTransition(reducedMotion)}
+                  aria-hidden
+                />
+              ) : null}
               <Link
                 href={href}
-                onClick={() => handleLinkClick(href, label)}
                 className={cn(
-                  "flex min-w-20 flex-col items-center gap-1 rounded-button px-3 py-2 text-xs font-medium",
+                  "relative flex min-w-20 flex-col items-center gap-1 rounded-button px-3 py-2 text-xs font-medium",
                   active ? "text-primary" : "text-text-secondary"
                 )}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon size={16} aria-hidden />
+                <motion.span
+                  whileTap={reducedMotion ? undefined : { scale: [1, 1.18, 1] }}
+                  transition={iconPopTransition(reducedMotion)}
+                  className="inline-flex"
+                >
+                  <Icon size={16} aria-hidden />
+                </motion.span>
                 <span>{label}</span>
               </Link>
             </li>

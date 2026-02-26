@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Reorder } from "framer-motion";
+import { Reorder, motion, useReducedMotion } from "framer-motion";
 import { BigGoalCard } from "../../components/goals/big-goal-card";
 import { CreateBigGoalForm } from "../../components/goals/create-big-goal-form";
 import { CreateMediumGoalForm } from "../../components/goals/create-medium-goal-form";
@@ -9,6 +9,8 @@ import { CreateTaskForm } from "../../components/tasks/create-task-form";
 import { Card } from "../../components/ui/card";
 import { useGoalTree, useReorderBigGoals, useReorderMediumGoals, useSetMediumGoalCompletion } from "../../hooks/use-goals";
 import { useDeleteTask, useReorderTasks, useToggleTask } from "../../hooks/use-tasks";
+import { cn } from "../../lib/utils";
+import { reorderLayoutTransition, reorderLiftTransition } from "../../lib/motion";
 
 export default function GoalsPage() {
   const goalsQuery = useGoalTree();
@@ -19,6 +21,9 @@ export default function GoalsPage() {
   const toggleTask = useToggleTask();
   const deleteTask = useDeleteTask();
   const [orderedGoals, setOrderedGoals] = useState(goalsQuery.data ?? []);
+  const [activeDragGoalId, setActiveDragGoalId] = useState<string | null>(null);
+  const [dropTargetGoalId, setDropTargetGoalId] = useState<string | null>(null);
+  const reducedMotion = Boolean(useReducedMotion());
 
   useEffect(() => {
     setOrderedGoals(goalsQuery.data ?? []);
@@ -30,6 +35,19 @@ export default function GoalsPage() {
   const persistBigGoalOrder = () => {
     if (orderedSignature === initialOrderSignature) return;
     reorderBigGoals.mutate({ orderedGoalIds: orderedGoals.map((goal) => goal.id) });
+  };
+
+  const getDropTargetId = (draggedGoalId: string, offsetY: number) => {
+    const direction = offsetY > 0 ? "down" : offsetY < 0 ? "up" : null;
+    if (!direction) return null;
+
+    const draggedIndex = orderedGoals.findIndex((goal) => goal.id === draggedGoalId);
+    if (draggedIndex === -1) return null;
+
+    const targetIndex = direction === "down" ? draggedIndex + 1 : draggedIndex - 1;
+    if (targetIndex < 0 || targetIndex >= orderedGoals.length) return null;
+
+    return orderedGoals[targetIndex]?.id ?? null;
   };
 
   const options = (goalsQuery.data ?? []).map((goal) => ({
@@ -73,26 +91,55 @@ export default function GoalsPage() {
         ) : orderedGoals.length > 0 ? (
           <Reorder.Group axis="y" values={orderedGoals} onReorder={setOrderedGoals} className="space-y-3">
             {orderedGoals.map((goal) => (
-              <Reorder.Item key={goal.id} value={goal} className="list-none" onDragEnd={persistBigGoalOrder}>
-                <BigGoalCard
-                  bigGoalId={goal.id}
-                  title={goal.title}
-                  description={goal.description}
-                  dueDate={goal.due_date}
-                  completionPercent={goal.completionPercent}
-                  mediumGoals={goal.medium_goals}
-                  onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
-                    setMediumCompletion.mutate({ mediumGoalId, isCompleted })
-                  }
-                  showTasks
-                  enableReorder
-                  onToggleTask={(taskId, completed) => toggleTask.mutate({ taskId, completed })}
-                  onDeleteTask={(taskId) => deleteTask.mutate({ taskId })}
-                  onReorderMediumGoals={(bigGoalId, orderedMediumGoalIds) =>
-                    reorderMediumGoals.mutate({ bigGoalId, orderedMediumGoalIds })
-                  }
-                  onReorderTasks={(mediumGoalId, orderedTaskIds) => reorderTasks.mutate({ mediumGoalId, orderedTaskIds })}
-                />
+              <Reorder.Item
+                key={goal.id}
+                value={goal}
+                layout
+                transition={reorderLayoutTransition(reducedMotion)}
+                className={cn("list-none", activeDragGoalId === goal.id ? "z-20" : "")}
+                whileDrag={reducedMotion ? undefined : { scale: 1.01 }}
+                onDragStart={() => {
+                  setActiveDragGoalId(goal.id);
+                  setDropTargetGoalId(null);
+                }}
+                onDrag={(_, info) => {
+                  const targetId = getDropTargetId(goal.id, info.offset.y);
+                  setDropTargetGoalId(targetId);
+                }}
+                onDragEnd={() => {
+                  setActiveDragGoalId(null);
+                  setDropTargetGoalId(null);
+                  persistBigGoalOrder();
+                }}
+              >
+                <motion.div
+                  className={cn(
+                    "rounded-card transition-colors",
+                    activeDragGoalId === goal.id ? "shadow-lg" : "shadow-none",
+                    dropTargetGoalId === goal.id ? "ring-2 ring-accent bg-background/70" : ""
+                  )}
+                  transition={reorderLiftTransition(reducedMotion)}
+                >
+                  <BigGoalCard
+                    bigGoalId={goal.id}
+                    title={goal.title}
+                    description={goal.description}
+                    dueDate={goal.due_date}
+                    completionPercent={goal.completionPercent}
+                    mediumGoals={goal.medium_goals}
+                    onToggleMediumCompletion={(mediumGoalId, isCompleted) =>
+                      setMediumCompletion.mutate({ mediumGoalId, isCompleted })
+                    }
+                    showTasks
+                    enableReorder
+                    onToggleTask={(taskId, completed) => toggleTask.mutate({ taskId, completed })}
+                    onDeleteTask={(taskId) => deleteTask.mutate({ taskId })}
+                    onReorderMediumGoals={(bigGoalId, orderedMediumGoalIds) =>
+                      reorderMediumGoals.mutate({ bigGoalId, orderedMediumGoalIds })
+                    }
+                    onReorderTasks={(mediumGoalId, orderedTaskIds) => reorderTasks.mutate({ mediumGoalId, orderedTaskIds })}
+                  />
+                </motion.div>
               </Reorder.Item>
             ))}
           </Reorder.Group>
