@@ -11,8 +11,11 @@ function getSupabaseConfig() {
 }
 
 export async function middleware(request: NextRequest) {
+  console.log("[middleware] path:", request.nextUrl.pathname);
+
   const config = getSupabaseConfig();
   if (!config) {
+    console.log("[middleware] no supabase config, passing through");
     return NextResponse.next();
   }
 
@@ -52,21 +55,26 @@ export async function middleware(request: NextRequest) {
     data: { session }
   } = await supabase.auth.getSession();
 
+  console.log("[middleware] session:", session ? "exists" : "none", "path:", request.nextUrl.pathname);
+
   const publicPaths = ["/login", "/api/widgets/summary", "/manifest.webmanifest"];
   const isPublic = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 
   if (!session && !isPublic) {
+    console.log("[middleware] no session, redirecting to /login");
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     return NextResponse.redirect(loginUrl);
   }
 
   if (session && request.nextUrl.pathname === "/login") {
+    console.log("[middleware] has session on /login, redirecting to /dashboard");
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashboardUrl);
   }
 
+  console.log("[middleware] passing through for path:", request.nextUrl.pathname);
   return response;
 }
 
