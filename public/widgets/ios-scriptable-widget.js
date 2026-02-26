@@ -1,4 +1,4 @@
-const endpoint = "https://YOUR_DOMAIN/api/widgets/summary";
+const endpoint = "https://theapp-blue.vercel.app/api/widgets/summary";
 
 async function fetchSummary() {
   const req = new Request(endpoint);

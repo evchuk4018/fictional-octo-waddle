@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { BigGoalCard } from "../../components/goals/big-goal-card";
@@ -10,29 +11,95 @@ import { useGoalTree, useSetMediumGoalCompletion } from "../../hooks/use-goals";
 import { useActiveTasks, useTaskCalendar, useToggleTask } from "../../hooks/use-tasks";
 import { toPercent } from "../../lib/utils";
 
-type DashboardClientProps = {
-  email: string;
-};
+type CopyStatus = "idle" | "copied" | "error";
 
-export function DashboardClient({ email }: DashboardClientProps) {
+export function DashboardClient() {
   const { signOut } = useAuth();
   const goalsQuery = useGoalTree();
   const activeTasksQuery = useActiveTasks();
   const calendarQuery = useTaskCalendar();
   const toggleTask = useToggleTask();
   const setMediumCompletion = useSetMediumGoalCompletion();
+  const [showWidgetInstructions, setShowWidgetInstructions] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
 
   const activeTasks = activeTasksQuery.data ?? [];
   const completedCount = activeTasks.filter((task) => task.completed).length;
   const completion = toPercent(completedCount, activeTasks.length);
   const nextTask = activeTasks.find((task) => !task.completed);
 
+  const handleCopyWidgetCode = async () => {
+    try {
+      const response = await fetch("/api/widgets/script", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Unable to load widget script");
+      }
+
+      const scriptCode = await response.text();
+      await navigator.clipboard.writeText(scriptCode);
+      setCopyStatus("copied");
+      window.setTimeout(() => setCopyStatus("idle"), 2500);
+    } catch {
+      setCopyStatus("error");
+      window.setTimeout(() => setCopyStatus("idle"), 3000);
+    }
+  };
+
   return (
     <div className="space-y-section">
-      <header className="space-y-1">
-        <p className="text-sm text-text-secondary">Signed in as {email}</p>
-        <h1 className="text-2xl font-semibold">Home</h1>
+      <header>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold">Home</h1>
+          <Button type="button" variant="secondary" onClick={handleCopyWidgetCode}>
+            Copy current script
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setShowWidgetInstructions((current) => !current)}
+          >
+            {showWidgetInstructions ? "Hide instructions" : "View instructions"}
+          </Button>
+          <p className="text-sm text-text-secondary" role="status" aria-live="polite">
+            {copyStatus === "copied"
+              ? "Copied!"
+              : copyStatus === "error"
+                ? "Could not copy. Try again."
+                : ""}
+          </p>
+        </div>
       </header>
+
+      {showWidgetInstructions ? (
+        <Card className="space-y-3">
+          <h2 className="text-base font-semibold">iOS widget setup</h2>
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-text-secondary">
+            <li>
+              Install the PWA in Safari via Share → Add to Home Screen, then launch from the home screen.
+            </li>
+            <li>
+              Log in from this dashboard, then tap
+              <span className="font-semibold text-text-primary"> Copy current script</span> to copy a
+              Scriptable script that already contains your current auth cookie.
+            </li>
+            <li>
+              In Scriptable, create a new script and paste the copied code. The endpoint is already set to
+              <span className="font-semibold text-text-primary">
+                {" "}
+                https://theapp-blue.vercel.app/api/widgets/summary
+              </span>
+              and the cookie is prefilled.
+            </li>
+            <li>
+              Run the script once to allow network access, then add a Scriptable widget and select this
+              script.
+            </li>
+            <li>
+              If the widget stops authenticating, log in again and copy a fresh current script.
+            </li>
+          </ol>
+        </Card>
+      ) : null}
 
       <Card className="space-y-2">
         <p className="text-sm text-text-secondary">Active task completion</p>
