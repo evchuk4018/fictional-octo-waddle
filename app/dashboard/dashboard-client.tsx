@@ -24,6 +24,7 @@ export function DashboardClient() {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [copyMessage, setCopyMessage] = useState("");
   const [copyDebugLogs, setCopyDebugLogs] = useState<string[]>([]);
+  const [manualCopyScript, setManualCopyScript] = useState("");
 
   const activeTasks = activeTasksQuery.data ?? [];
   const completedCount = activeTasks.filter((task) => task.completed).length;
@@ -86,6 +87,7 @@ export function DashboardClient() {
 
       const contentType = response.headers.get("content-type") ?? "";
       const scriptCode = await response.text();
+      setManualCopyScript(scriptCode);
       console.log("[copy] response length:", scriptCode.length, "content-type:", contentType);
       addCopyDebugLog(`Response text length: ${scriptCode.length}`);
 
@@ -134,7 +136,7 @@ export function DashboardClient() {
       } else {
         console.error("[copy] all copy methods failed");
         addCopyDebugLog("All copy methods failed");
-        setCopyMessage("Copy failed on this browser. Use the debug logs below and try again after re-login.");
+        setCopyMessage("Copy failed on this browser. Use Manual copy below: tap-hold inside the box and copy.");
         setCopyStatus("error");
         window.setTimeout(() => setCopyStatus("idle"), 4000);
       }
@@ -194,6 +196,39 @@ export function DashboardClient() {
             <p className="text-text-secondary">No logs yet. Tap “Copy current script” to capture diagnostics.</p>
           )}
         </div>
+
+        {manualCopyScript ? (
+          <div className="rounded-md border border-border bg-background p-3 text-xs">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="font-semibold text-text-primary">Manual copy (iOS fallback)</p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-7 px-2 py-1 text-xs"
+                onClick={() => {
+                  const textarea = document.getElementById("manual-widget-script") as HTMLTextAreaElement | null;
+                  if (textarea) {
+                    textarea.focus();
+                    textarea.select();
+                    textarea.setSelectionRange(0, textarea.value.length);
+                    addCopyDebugLog("Manual script selected for tap-hold copy");
+                  }
+                }}
+              >
+                Select all
+              </Button>
+            </div>
+            <p className="mb-2 text-text-secondary">
+              If copy is blocked, tap-hold inside this box and choose Copy.
+            </p>
+            <textarea
+              id="manual-widget-script"
+              readOnly
+              value={manualCopyScript}
+              className="h-28 w-full rounded-md border border-border bg-background p-2 text-[11px] text-text-secondary"
+            />
+          </div>
+        ) : null}
       </header>
 
       {showWidgetInstructions ? (
