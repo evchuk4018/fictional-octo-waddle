@@ -31,11 +31,18 @@ async function fetchSummary() {
   return parsed;
 }
 
-function addText(stack, text, size = 12, color = Color.dynamicColor(new Color("#1F2D2B"), new Color("#FFFFFF")), weight = "regular") {
+function getDefaultTextColor() {
+  if (typeof Color.dynamic === "function") {
+    return Color.dynamic(new Color("#1F2D2B"), new Color("#FFFFFF"));
+  }
+  return new Color("#1F2D2B");
+}
+
+function addText(stack, text, size = 12, color = null, weight = "regular") {
   const t = stack.addText(text);
   t.font = Font.systemFont(size);
   if (weight === "semibold") t.font = Font.semiboldSystemFont(size);
-  t.textColor = color;
+  t.textColor = color ?? getDefaultTextColor();
 }
 
 async function buildWidget() {
